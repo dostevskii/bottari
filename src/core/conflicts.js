@@ -12,8 +12,10 @@ import { homeDir, atomicWrite } from '../util/fs.js';
 
 const filePath = () => path.join(homeDir(), '.bottari', 'pending-conflicts.json');
 
+// 64 bits: enough that no two conflict paths ever share an id, even
+// against a hostile catalog full of chosen names.
 export const conflictId = (logical) =>
-  crypto.createHash('sha256').update(logical).digest('hex').slice(0, 8);
+  crypto.createHash('sha256').update(logical).digest('hex').slice(0, 16);
 
 export function loadPendingState() {
   try {

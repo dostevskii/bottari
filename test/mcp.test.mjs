@@ -53,9 +53,11 @@ test('MCP golden conversation', async () => {
     const list = await call('tools/list', {});
     const names = list.result.tools.map((t) => t.name);
     assert.deepEqual(names.sort(), [
-      'bottari_get_conflict_diff', 'bottari_list_generations', 'bottari_projects_add',
+      'bottari_get_conflict_diff', 'bottari_list_generations',
       'bottari_projects_list', 'bottari_resolve_conflicts', 'bottari_status', 'bottari_sync',
     ]);
+    // registering folders decides what leaves the machine — human-only, CLI-only
+    assert.ok(!names.includes('bottari_projects_add'));
     assert.ok(list.result.tools.every((t) => t.description && t.inputSchema?.type === 'object'));
 
     // a purely local tool works with no cloud at all

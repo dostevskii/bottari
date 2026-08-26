@@ -10,7 +10,7 @@ process.env.BOTTARI_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'bottari-scan-'
 
 const { test } = await import('node:test');
 const { default: assert } = await import('node:assert/strict');
-const { scanBuffer, assertClean, isForbiddenName, loadAllowed, addAllowed } =
+const { scanBuffer, assertClean, isForbiddenName, loadAllowed, addAllowed, redactText } =
   await import('../src/scan/secrets.js');
 
 const B = (s) => Buffer.from(s, 'utf8');
@@ -55,6 +55,13 @@ test('an allowed fingerprint passes, everything else still fails', () => {
     () => assertClean('x', B('other: ghp_ABCDEFGHIJKLMNOPQRSTUVWX'), loadAllowed()),
     /업로드 중단/,
   );
+});
+
+test('redaction strips every credential shape, keeps the rest', () => {
+  const text = 'key = "sk-abcdefghijklmnopqrstuvwx" and token ghp_ABCDEFGHIJKLMNOPQRSTUVWX kept-text';
+  const out = redactText(text);
+  assert.ok(!out.includes('sk-abcdefghijklmnop') && !out.includes('ghp_'));
+  assert.ok(out.includes('kept-text') && out.includes('[가려진 비밀값]'));
 });
 
 test('credential files are refused by name alone', () => {

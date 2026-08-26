@@ -7,7 +7,6 @@
 // diff, answered by id, and applied by the next sync call.
 
 import fs from 'node:fs';
-import path from 'node:path';
 import { makeClient } from '../drive/client.js';
 import { makeFiles } from '../drive/files.js';
 import { getAccessToken } from '../auth/token-store.js';
@@ -18,9 +17,10 @@ import {
 } from '../core/generation.js';
 import { loadPendingState, recordPending, setResolution, resolutionFor } from '../core/conflicts.js';
 import { parseManifest } from '../model/manifest.js';
-import { loadConfig, saveConfig, loadProfile } from '../model/config.js';
+import { loadConfig, loadProfile } from '../model/config.js';
 import { logicalToLocal } from '../paths/mapping.js';
 import { unseal } from '../crypto/envelope.js';
+import { redactText } from '../scan/secrets.js';
 
 async function openContext() {
   const client = makeClient({ getAccessToken: () => getAccessToken({ interactive: false }) });
@@ -145,7 +145,8 @@ export const TOOLS = [
       const remoteBuf = Buffer.concat(parts);
       const localPath = logicalToLocal(conflict.path);
       const localBuf = localPath && fs.existsSync(localPath) ? fs.readFileSync(localPath) : Buffer.alloc(0);
-      return { id, path: conflict.path, diff: tinyDiff(localBuf, remoteBuf) };
+      // this text goes into a model's context — credentials never do
+      return { id, path: conflict.path, diff: redactText(tinyDiff(localBuf, remoteBuf)) };
     },
   },
   {
@@ -205,32 +206,7 @@ export const TOOLS = [
       return { projects: loadConfig().projects };
     },
   },
-  {
-    name: 'bottari_projects_add',
-    description: '프로젝트 폴더를 동기화 대상으로 등록합니다.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: '이 컴퓨터의 절대 경로' },
-        name: { type: 'string', description: '머신 간 공유되는 이름(생략하면 폴더명)' },
-      },
-      required: ['path'],
-      additionalProperties: false,
-    },
-    async handler({ path: root, name }) {
-      const resolved = path.resolve(root);
-      if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-        throw new Error(`폴더가 없습니다: ${resolved}`);
-      }
-      const slug = (name ?? path.basename(resolved))
-        .toLowerCase().replace(/[^a-z0-9가-힣._-]+/g, '-').replace(/^-+|-+$/g, '');
-      const config = loadConfig();
-      if (config.projects[slug] && config.projects[slug] !== resolved) {
-        throw new Error(`'${slug}' 은 이미 다른 경로로 등록되어 있습니다.`);
-      }
-      config.projects[slug] = resolved;
-      saveConfig(config);
-      return { registered: { [slug]: resolved } };
-    },
-  },
+  // No bottari_projects_add here on purpose: registering a folder decides
+  // what leaves this machine, and a prompt-injected model must never make
+  // that decision. Registration is the human's, in the terminal.
 ];

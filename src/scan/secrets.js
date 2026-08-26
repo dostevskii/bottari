@@ -75,6 +75,17 @@ export function addAllowed(fingerprint) {
   atomicWrite(allowPath(), JSON.stringify([...set], null, 2) + '\n');
 }
 
+// For text headed into a model's context (MCP conflict diffs): the shape
+// of the change matters there, the credential itself never does.
+export function redactText(text) {
+  let out = text;
+  for (const { re } of PATTERNS) {
+    re.lastIndex = 0;
+    out = out.replace(re, '[가려진 비밀값]');
+  }
+  return out;
+}
+
 // tier A/B gate. allowed: Set of fingerprints the user accepted knowingly.
 export function assertClean(logical, buf, allowed = new Set()) {
   const base = logical.split('/').at(-1);
