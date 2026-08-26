@@ -10,7 +10,16 @@ const require = createRequire(import.meta.url);
 const pkg = require('../../package.json');
 
 // name -> { summary, load: () => import(...) }
-const COMMANDS = new Map([]);
+const COMMANDS = new Map([
+  ['login', {
+    summary: 'Google Drive에 로그인합니다 (로그인 정보는 OS 자격증명 저장소에 보관)',
+    load: () => import('./login.js'),
+  }],
+  ['logout', {
+    summary: '저장된 로그인 정보를 지웁니다',
+    load: () => import('./login.js').then((m) => ({ default: m.logout })),
+  }],
+]);
 
 function printHelp() {
   const lines = [

@@ -6,8 +6,10 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 
+// BOTTARI_HOME redirects everything bottari treats as "home" — tests point
+// it at a temp directory so nothing touches the real one.
 export function homeDir() {
-  return os.homedir();
+  return process.env.BOTTARI_HOME || os.homedir();
 }
 
 // Write-then-rename so a crash mid-write can never leave a half-written
