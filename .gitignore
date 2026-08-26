@@ -1,0 +1,8 @@
+# The local PII denylist holds the very identifiers it exists to keep out of
+# the repository, so it must never be committed. check-pii verifies this.
+.pii-denylist.local
+
+node_modules/
+*.log
+.DS_Store
+.tmp/

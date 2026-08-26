@@ -1,0 +1,3 @@
+# One line-ending policy for all three OSes, so a checkout on Windows and a
+# checkout on Linux never disagree about what "unchanged" means.
+* text=auto eol=lf

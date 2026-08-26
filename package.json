@@ -1,0 +1,14 @@
+{
+  "name": "bottari",
+  "version": "0.1.0",
+  "description": "Pack up your CLI world - skills, settings and sessions - and carry it between machines through your own Google Drive.",
+  "type": "module",
+  "bin": { "bottari": "bin/bottari.mjs" },
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test",
+    "pii": "node scripts/check-pii.mjs"
+  },
+  "author": "JUNG HWANGBO <dostevskii@gmail.com>",
+  "license": "GPL-3.0-only"
+}
