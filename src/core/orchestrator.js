@@ -197,6 +197,7 @@ export async function runSync({
     // ---- conflicts: jsonl resolves itself where the data allows it ----
     const resolutions = new Map();
     const conflictNotes = [];
+    const pendingDetails = [];
     for (const p of plan.conflicts.slice()) {
       const src = sourceFor(p);
       if (src?.tier === 'D' && p.endsWith('.jsonl')) {
@@ -229,6 +230,7 @@ export async function runSync({
       });
       if (choice === 'pending') {
         plan.pending.push(p);
+        pendingDetails.push({ path: p, localHash: localHashes[p], remoteHash: remote[p] });
         continue;
       }
       resolutions.set(p, choice);
@@ -320,7 +322,10 @@ export async function runSync({
         '암호화되어 저장되지만, 대화에 붙여넣었던 키가 있는지 한번 돌아보세요.');
     }
 
-    return { generation, plan, applied, pending: plan.pending, tierDFindings, meta, metaFileId };
+    return {
+      generation, plan, applied, pending: plan.pending, pendingDetails,
+      tierDFindings, meta, metaFileId,
+    };
   }
   throw new Error(`커밋 경합이 ${MAX_COMMIT_RETRIES}회 반복되었습니다. 잠시 후 다시 시도하세요.`);
 }

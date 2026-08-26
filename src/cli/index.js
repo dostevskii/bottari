@@ -39,6 +39,10 @@ const COMMANDS = new Map([
     summary: '설정에서 분리된 시크릿 값을 관리합니다 (list / set <이름> / remove <이름>)',
     load: () => import('./secrets.js'),
   }],
+  ['mcp', {
+    summary: 'MCP 서버로 동작합니다 (Claude 데스크톱 앱 연결용)',
+    load: () => import('./mcp.js'),
+  }],
   ['login', {
     summary: 'Google Drive에 로그인합니다 (로그인 정보는 OS 자격증명 저장소에 보관)',
     load: () => import('./login.js'),
