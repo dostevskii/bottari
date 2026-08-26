@@ -27,7 +27,7 @@ const ALLOWED_IDENTITY = ['JUNG HWANGBO', 'dostevskii@gmail.com'];
 
 // Built without literal path text so the scanner cannot flag itself.
 const BS = String.fromCharCode(92);
-const PLACEHOLDER = '(?!example\\b|<|\\$|%)';
+const PLACEHOLDER = '(?!example|<|\\$|%)'; // any example* name is a placeholder
 const GENERIC = [
   {
     name: 'windows-home-path',

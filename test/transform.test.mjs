@@ -23,14 +23,17 @@ const B = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o, null,
 
 // ---------- placeholders ----------
 
-test('shrink catches every spelling: backslash, slash, escaped, any case', () => {
+test('shrink catches every spelling: backslash, slash, escaped, msys, any case', () => {
   for (const s of [
     'C:\\Users\\example\\x', 'c:/users/example/x', 'C:\\\\Users\\\\example\\\\x',
+    '/c/Users/example/x', '//c/users/example/x',
   ]) {
     const out = shrink(s, WIN);
     assert.ok(out.includes('${BOTTARI_HOME}'), `${s} → ${out}`);
     assert.ok(!hasAbsolutePath(out), `${s} still absolute: ${out}`);
   }
+  // someone else's msys home is still an absolute path
+  assert.ok(hasAbsolutePath('/d/Users/example2/x'));
 });
 
 test('projects shrink before home (longest root wins)', () => {
@@ -45,6 +48,15 @@ test('expand renders the target machine, unknown slugs stay visible', () => {
   assert.equal(expand('${BOTTARI_HOME}/a', LNX), '/home/example/a');
   assert.equal(expand('${BOTTARI_HOME}\\a', { ...WIN, style: undefined }), 'C:/Users/example/a');
   assert.equal(expand('${BOTTARI_PROJECT:nope}/x', LNX), '${BOTTARI_PROJECT:nope}/x');
+});
+
+test('expand never eats a JSON quote escape (regression: real settings.json)', () => {
+  // raw text: \"${BOTTARI_HOME}\\docs\\x.html\"  — as it appears inside a
+  // JSON document, where \" is an escaped quote and \\ a path separator
+  const text = '\\"' + '${BOTTARI_HOME}' + '\\\\docs\\\\x.html' + '\\"';
+  assert.equal(expand(text, LNX), '\\"/home/example/docs/x.html\\"');
+  const doc = JSON.stringify({ allow: ['Bash(cat "' + '${BOTTARI_HOME}' + '\\\\docs\\\\x.html")'] });
+  assert.doesNotThrow(() => JSON.parse(expand(doc, LNX)));
 });
 
 // ---------- claude settings ----------

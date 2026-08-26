@@ -17,13 +17,21 @@ import { homeDir } from '../util/fs.js';
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// One home spelling → a pattern tolerating /, \ and \\ between segments,
+// One home spelling → patterns tolerating /, \ and \\ between segments,
 // case-insensitive (NTFS), so the lowercase, forward-slash and
 // JSON-escaped spellings of the home path all match from the single
-// os.homedir() value.
-function pathPattern(p) {
+// os.homedir() value. A Windows home additionally matches its Git Bash
+// (MSYS) spelling, /c/Users/example — permission entries recorded through
+// a bash shell really do look like that.
+function pathPatterns(p) {
   const segs = p.split(/[\\/]+/).filter(Boolean);
-  return segs.map(escapeRe).join('(?:[\\\\/]|\\\\\\\\)+');
+  const sep = '(?:[\\\\/]|\\\\\\\\)+';
+  const patterns = [segs.map(escapeRe).join(sep)];
+  const drive = /^([A-Za-z]):$/.exec(segs[0]);
+  if (drive) {
+    patterns.push('/+' + drive[1] + '/' + segs.slice(1).map(escapeRe).join(sep));
+  }
+  return patterns;
 }
 
 export function shrink(text, { home = homeDir(), projects = {} } = {}) {
@@ -34,7 +42,9 @@ export function shrink(text, { home = homeDir(), projects = {} } = {}) {
     { token: '${BOTTARI_HOME}', root: home },
   ].sort((a, b) => b.root.length - a.root.length);
   for (const { token, root } of roots) {
-    out = out.replace(new RegExp(pathPattern(root), 'gi'), token.replace(/\$/g, '$$$$'));
+    for (const pattern of pathPatterns(root)) {
+      out = out.replace(new RegExp(pattern, 'gi'), token.replace(/\$/g, '$$$$'));
+    }
   }
   return out;
 }
@@ -45,8 +55,11 @@ export function shrink(text, { home = homeDir(), projects = {} } = {}) {
 // The placeholder and the path tail glued to it are rendered as one unit,
 // so '${BOTTARI_HOME}\proj' on a Linux target becomes /home/…/proj, not a
 // half-translated mix of separators.
+// Each tail hop needs a real segment after its separator (+, not *): a
+// lone backslash right before a quote is JSON escaping the quote, and
+// consuming it would corrupt the document.
 const PLACEHOLDER_WITH_TAIL =
-  /\$\{BOTTARI_(HOME|PROJECT:[A-Za-z0-9._-]+)\}((?:(?:\\\\|[\\/])[^"'\\/\][}\r\n]*)*)/g;
+  /\$\{BOTTARI_(HOME|PROJECT:[A-Za-z0-9._-]+)\}((?:(?:\\\\|[\\/])[^"'\\/\][}\r\n]+)*)/g;
 
 export function expand(text, { home = homeDir(), projects = {}, style = 'slash' } = {}) {
   const render = (p) => {
@@ -69,8 +82,9 @@ export function expand(text, { home = homeDir(), projects = {}, style = 'slash' 
 
 // Does machine-specific reality still leak from this string? A drive
 // letter must not be preceded by another letter or digit — otherwise the
-// "s:" inside "https://…" reads as a drive.
-const ABS_PATH = /(?:(?:^|[^A-Za-z0-9])[A-Za-z]:(?:[\\/]|\\\\)|(?:^|["'\s=(])\/(?:home|Users)\/)/;
+// "s:" inside "https://…" reads as a drive. The MSYS spelling of a user
+// directory (/c/Users/example) counts too.
+const ABS_PATH = /(?:(?:^|[^A-Za-z0-9])[A-Za-z]:(?:[\\/]|\\\\)|(?:^|["'\s=(])\/(?:home|Users)\/|\/[A-Za-z]\/(?:Users|home)\/)/i;
 
 export function hasAbsolutePath(text) {
   return ABS_PATH.test(text);
