@@ -44,3 +44,7 @@ test('case collisions are detected, not silently merged', () => {
   assert.equal(hits.length, 1);
   assert.deepEqual(hits[0].paths, ['sessions/C--home', 'sessions/c--home']);
 });
+
+test('a path listed twice (catalog + local scan) never collides with itself', () => {
+  assert.deepEqual(findCaseCollisions(['a/b.md', 'a/b.md', 'c/d.md']), []);
+});

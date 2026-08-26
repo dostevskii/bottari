@@ -17,7 +17,8 @@ import { atomicWrite } from '../util/fs.js';
 const VAULT = () => path.join(homeDir(), '.bottari', 'vault.win.json');
 
 function ps(script) {
-  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+  // progress records leak to stderr as CLIXML noise otherwise
+  const encoded = Buffer.from(`$ProgressPreference='SilentlyContinue'; ${script}`, 'utf16le').toString('base64');
   return execFileSync('powershell.exe',
     ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
     { encoding: 'utf8', windowsHide: true }).trim();

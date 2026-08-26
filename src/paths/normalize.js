@@ -15,9 +15,11 @@ export function casefoldKey(logical) {
 }
 
 // -> [{ key, paths: [two or more logical paths] }]
+// The input may list the same path twice (once from the catalog, once from
+// the local scan) — a path never collides with itself.
 export function findCaseCollisions(paths) {
   const byKey = new Map();
-  for (const p of paths) {
+  for (const p of new Set(paths)) {
     const k = casefoldKey(p);
     if (!byKey.has(k)) byKey.set(k, []);
     byKey.get(k).push(p);
