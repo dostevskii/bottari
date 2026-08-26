@@ -2,6 +2,10 @@
 # the repository, so it must never be committed. check-pii verifies this.
 .pii-denylist.local
 
+# Machine-specific notes (real paths, addresses) live beside the docs but
+# never inside the repository.
+*.local.md
+
 node_modules/
 *.log
 .DS_Store
