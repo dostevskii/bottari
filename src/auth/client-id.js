@@ -12,9 +12,9 @@
 
 const XOR_KEY = 0x5a;
 
-// Filled by scripts/embed-client.mjs before release; empty in source.
-const EMBEDDED_ID = '';
-const EMBEDDED_SECRET = '';
+// Written by scripts/embed-client.mjs (see that file for the format).
+const EMBEDDED_ID = 'bGJsbGlpaGpsb2NidzA7bWI3OTw0bS9oPTksYzRoLG0xN2wvKz42LysqLzs5dDsqKil0PTU1PTY/Lyk/KDk1NC4/NC50OTU3';
+const EMBEDDED_SECRET = 'HRUZCQoCdyAMYgosPgUzCBgcHGIzM3cFPiwcLTAoLRI9DxI=';
 
 function decode(s) {
   if (!s) return '';
