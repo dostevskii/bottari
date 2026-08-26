@@ -9,6 +9,7 @@
 
 import path from 'node:path';
 import { homeDir } from '../util/fs.js';
+import { loadConfig } from '../model/config.js';
 import * as claudeSettings from '../transform/claude-settings.js';
 import * as claudeJson from '../transform/claude-json.js';
 import * as codexConfig from '../transform/codex-config.js';
@@ -53,8 +54,18 @@ export function tierDSources() {
   ];
 }
 
+// Tier P: project folders the user registered. The slug is the shared
+// name; where it lives on each machine comes from that machine's own
+// config, so machine A's path never travels to machine B.
+export function tierPSources() {
+  const { projects } = loadConfig();
+  return Object.entries(projects).map(([slug, root]) => ({
+    logical: `projects/${slug}`, local: root, kind: 'dir', tier: 'P',
+  }));
+}
+
 export function allSources() {
-  return [...tierASources(), ...tierBSources(), ...tierDSources()];
+  return [...tierASources(), ...tierBSources(), ...tierDSources(), ...tierPSources()];
 }
 
 // The source a logical path belongs to — including keep-both copies, which
@@ -78,8 +89,10 @@ export function mirrorTargets() {
 }
 
 // Names that never sync, wherever they appear. Matched per path segment.
+// Regenerable build output has no place in a bundle either.
 const EXCLUDED_SEGMENTS = new Set([
   'node_modules', '.git', '__pycache__', '.DS_Store',
+  'dist', 'build', '.next', '.nuxt', 'target', '.venv', 'venv', 'coverage', '.cache',
 ]);
 const EXCLUDED_SUFFIXES = ['.sqlite', '.sqlite-wal', '.sqlite-shm', '.log', '.lock', '.tmp'];
 

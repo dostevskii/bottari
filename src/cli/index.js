@@ -27,6 +27,14 @@ const COMMANDS = new Map([
     summary: '클라우드의 세대 목록을 봅니다',
     load: () => import('./status.js').then((m) => ({ default: m.generations })),
   }],
+  ['projects', {
+    summary: '동기화할 프로젝트 폴더를 등록/해제합니다 (list / add <경로> / remove <이름>)',
+    load: () => import('./projects.js'),
+  }],
+  ['tools', {
+    summary: '설치 도구 목록을 기록하고 컴퓨터끼리 비교합니다 (capture / show)',
+    load: () => import('./tools.js'),
+  }],
   ['secrets', {
     summary: '설정에서 분리된 시크릿 값을 관리합니다 (list / set <이름> / remove <이름>)',
     load: () => import('./secrets.js'),
