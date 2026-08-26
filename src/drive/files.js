@@ -79,6 +79,56 @@ export function makeFiles(client) {
     return res;
   }
 
+  // Drive's multipart endpoint caps the payload at 5MB; anything bigger
+  // goes through a resumable session: initiate, PUT the bytes, and if the
+  // PUT dies mid-flight ask the session where it stopped (308 + Range)
+  // and send the remainder.
+  async function uploadResumable({ name, parentId, data, fileId, mimeType = 'application/octet-stream' }) {
+    const meta = fileId ? { name } : { name, parents: parentId ? [parentId] : [] };
+    const init = await client.request(fileId ? `/files/${fileId}` : '/files', {
+      method: fileId ? 'PATCH' : 'POST',
+      upload: true,
+      raw: true,
+      query: { uploadType: 'resumable', fields: 'id,name,size' },
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Length': String(data.length),
+      },
+      body: JSON.stringify(meta),
+    });
+    const session = init.headers.get('location');
+    if (!session) throw new Error('resumable 세션 주소를 받지 못했습니다');
+
+    const putFrom = (offset) => client.rawFetch(session, {
+      method: 'PUT',
+      headers: {
+        'Content-Length': String(data.length - offset),
+        ...(offset > 0
+          ? { 'Content-Range': `bytes ${offset}-${data.length - 1}/${data.length}` }
+          : {}),
+      },
+      body: offset > 0 ? data.subarray(offset) : data,
+    });
+
+    let res = await putFrom(0);
+    if (!res.ok && res.status !== 308) {
+      // where did it stop? ask the session, then send the rest once
+      const probe = await client.rawFetch(session, {
+        method: 'PUT',
+        headers: { 'Content-Range': `bytes */${data.length}`, 'Content-Length': '0' },
+      });
+      if (probe.status === 308) {
+        const range = probe.headers.get('range'); // "bytes=0-N"
+        const offset = range ? Number(range.split('-')[1]) + 1 : 0;
+        res = await putFrom(offset);
+      }
+    }
+    if (!res.ok) {
+      throw new Error(`resumable 업로드 실패 (${res.status})`);
+    }
+    return res.json();
+  }
+
   async function download(fileId) {
     const res = await client.request(`/files/${fileId}`, { query: { alt: 'media' }, raw: true });
     return Buffer.from(await res.arrayBuffer());
@@ -88,5 +138,12 @@ export function makeFiles(client) {
     await client.request(`/files/${fileId}`, { method: 'DELETE' });
   }
 
-  return { findChild, ensureFolder, list, uploadSmall, download, remove };
+  // multipart under the 5MB endpoint cap, resumable above it
+  async function upload(args) {
+    return args.data.length > 4 * 1024 * 1024
+      ? uploadResumable(args)
+      : uploadSmall(args);
+  }
+
+  return { findChild, ensureFolder, list, uploadSmall, uploadResumable, upload, download, remove };
 }

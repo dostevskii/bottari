@@ -45,5 +45,24 @@ export function makeClient({ getAccessToken, fetchImpl = fetch, maxTries = 4 }) 
     }
   }
 
-  return { request };
+  // For URLs outside the two API bases (a resumable session URI): auth
+  // header, 5xx backoff, and the Response handed back raw — resumable
+  // status codes like 308 are the caller's business.
+  async function rawFetch(url, { method = 'GET', headers = {}, body } = {}) {
+    for (let attempt = 1; ; attempt++) {
+      const token = await getAccessToken();
+      const res = await fetchImpl(url, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, ...headers },
+        body,
+      });
+      if (res.status >= 500 && attempt < maxTries) {
+        await sleep(500 * 2 ** (attempt - 1));
+        continue;
+      }
+      return res;
+    }
+  }
+
+  return { request, rawFetch };
 }

@@ -38,8 +38,23 @@ export function tierBSources() {
   ];
 }
 
+// Tier D: session history. Large, append-mostly, machine-flavored but
+// shared so any machine can pick a conversation up. lineUnion marks files
+// whose lines are independent records — a true fork merges as a union of
+// lines instead of asking the user.
+export function tierDSources() {
+  const home = homeDir();
+  return [
+    { logical: 'sessions/claude', local: path.join(home, '.claude', 'projects'), kind: 'dir', tier: 'D' },
+    { logical: 'sessions/codex', local: path.join(home, '.codex', 'sessions'), kind: 'dir', tier: 'D' },
+    { logical: 'sessions/codex-archived', local: path.join(home, '.codex', 'archived_sessions'), kind: 'dir', tier: 'D' },
+    { logical: 'history/claude.jsonl', local: path.join(home, '.claude', 'history.jsonl'), kind: 'file', tier: 'D', lineUnion: true },
+    { logical: 'history/codex.jsonl', local: path.join(home, '.codex', 'history.jsonl'), kind: 'file', tier: 'D', lineUnion: true },
+  ];
+}
+
 export function allSources() {
-  return [...tierASources(), ...tierBSources()];
+  return [...tierASources(), ...tierBSources(), ...tierDSources()];
 }
 
 // The source a logical path belongs to — including keep-both copies, which

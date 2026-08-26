@@ -78,7 +78,9 @@ export async function releaseLock(store) {
 export async function putManifest(store, gen, machineId, sealed) {
   const suffix = Math.random().toString(36).slice(2, 8);
   const name = `g${String(gen).padStart(6, '0')}-${machineId.slice(0, 8)}-${suffix}.manifest.enc`;
-  const res = await store.files.uploadSmall({ name, parentId: store.gensId, data: sealed });
+  const res = await (store.files.upload ?? store.files.uploadSmall)({
+    name, parentId: store.gensId, data: sealed,
+  });
   return res.id;
 }
 
@@ -103,10 +105,25 @@ export async function listObjects(store) {
   return new Map(all.map((f) => [f.name, f.id]));
 }
 
+// Parallel uploads may hit the same content twice (identical chunks);
+// dedupe in-flight per index so CAS names stay unique on Drive.
+const INFLIGHT = new WeakMap();
+
 export async function putObject(store, oid, sealed, index) {
   if (index?.has(oid)) return; // content-addressed: already there
-  const res = await store.files.uploadSmall({ name: oid, parentId: store.objsId, data: sealed });
-  index?.set(oid, res.id);
+  const send = async () => {
+    const res = await (store.files.upload ?? store.files.uploadSmall)({
+      name: oid, parentId: store.objsId, data: sealed,
+    });
+    index?.set(oid, res.id);
+  };
+  if (!index) return send();
+  let inflight = INFLIGHT.get(index);
+  if (!inflight) INFLIGHT.set(index, (inflight = new Map()));
+  if (inflight.has(oid)) return inflight.get(oid);
+  const p = send().finally(() => inflight.delete(oid));
+  inflight.set(oid, p);
+  return p;
 }
 
 export async function getObject(store, oid, index) {

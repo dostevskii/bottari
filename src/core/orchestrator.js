@@ -16,7 +16,8 @@ import { scanLocal, buildScanCache } from './snapshot.js';
 import { allSources, sourceFor, logicalToLocal, mirrorTargets } from '../paths/mapping.js';
 import { findCaseCollisions } from '../paths/normalize.js';
 import { machineContext, loadOverlay } from '../transform/index.js';
-import { assertClean, loadAllowed } from '../scan/secrets.js';
+import { assertClean, loadAllowed, scanBuffer } from '../scan/secrets.js';
+import { resolveAppendOnly, lineUnion } from './jsonl.js';
 import { newManifest, parseManifest, serializeManifest, hashesOf } from '../model/manifest.js';
 import { loadState, saveState } from '../model/state.js';
 import { seal, unseal } from '../crypto/envelope.js';
@@ -26,6 +27,19 @@ import { sha256Hex } from '../util/hash.js';
 import { log } from '../util/log.js';
 
 const MAX_COMMIT_RETRIES = 3;
+const CHUNK_SIZE = 8 * 1024 * 1024;
+
+// n workers over one shared queue — wall-clock is the slowest item, not
+// the sum, and Drive tolerates a handful of parallel requests happily.
+async function pool(items, n, fn) {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(n, queue.length) }, async () => {
+    for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
+      await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
 
 // io.resolveConflict(path) -> 'local' | 'remote' | 'both'  (CLI asks the
 // user; MCP records the conflict and returns 'pending' to defer it).
@@ -72,22 +86,6 @@ export async function runSync({
       return { dryRun: true, generation: head, plan };
     }
 
-    // ---- conflicts: ask before touching anything ----
-    const resolutions = new Map();
-    const conflictNotes = [];
-    for (const p of plan.conflicts) {
-      const choice = await io.resolveConflict(p, {
-        localHash: localHashes[p],
-        remoteHash: remote[p],
-      });
-      if (choice === 'pending') {
-        plan.pending.push(p);
-        continue;
-      }
-      resolutions.set(p, choice);
-      conflictNotes.push({ path: p, choice, machineId });
-    }
-
     const objectsIndex = await listObjects(store);
     const nextGen = head + 1;
     const newEntries = { ...remoteEntries };
@@ -96,6 +94,7 @@ export async function runSync({
 
     const ctx = machineContext();
     const allowed = loadAllowed();
+    let tierDFindings = 0;
 
     const writeLocal = async (logical, entry, buf, { suffix = '' } = {}) => {
       const target = logicalToLocal(logical);
@@ -132,38 +131,127 @@ export async function runSync({
       return buf;
     };
 
+    const gateOrReport = (logical, buf, tier) => {
+      if (tier === 'D') {
+        // session transcripts: users paste keys into chats; the payload is
+        // encrypted — count and tell, never block
+        tierDFindings += scanBuffer(buf).length;
+      } else {
+        // The fail-closed gate: transformers are supposed to have stripped
+        // credentials from tiers A/B — assume they have a bug.
+        assertClean(logical, buf, allowed);
+      }
+    };
+
     const upload = async (logical) => {
       const f = local.get(logical);
-      const buf = f.packed ?? fs.readFileSync(f.abs);
       const tier = sourceFor(logical)?.tier ?? 'A';
-      // The fail-closed gate: transformers are supposed to have stripped
-      // credentials from tiers A/B — assume they have a bug.
-      assertClean(logical, buf, allowed);
-      const hash = sha256Hex(buf);
-      const oid = objectId(objKey, hash);
-      await putObject(store, oid, seal(buf, dek, { oid, gzip: true }), objectsIndex);
-      newEntries[logical] = {
-        hash, size: buf.length, mtime: Math.round(f.mtimeMs), exec: f.exec,
-        tier, objects: [oid], gzip: true,
-      };
+
+      if (f.packed || f.size <= CHUNK_SIZE) {
+        const buf = f.packed ?? fs.readFileSync(f.abs);
+        gateOrReport(logical, buf, tier);
+        const hash = f.packed ? f.hash : sha256Hex(buf);
+        const oid = objectId(objKey, hash);
+        await putObject(store, oid, seal(buf, dek, { oid, gzip: true }), objectsIndex);
+        newEntries[logical] = {
+          hash, size: buf.length, mtime: Math.round(f.mtimeMs), exec: f.exec,
+          tier, objects: [oid], gzip: true,
+        };
+      } else {
+        // Large file: fixed 8MB chunks, each its own content-addressed
+        // object. An append re-uploads only the chunks it touched.
+        const fd = fs.openSync(f.abs, 'r');
+        const oids = [];
+        try {
+          const chunk = Buffer.alloc(CHUNK_SIZE);
+          for (let offset = 0; offset < f.size; ) {
+            const n = fs.readSync(fd, chunk, 0, CHUNK_SIZE, offset);
+            if (n <= 0) break;
+            const piece = Buffer.from(chunk.subarray(0, n));
+            gateOrReport(logical, piece, tier);
+            const oid = objectId(objKey, sha256Hex(piece));
+            await putObject(store, oid, seal(piece, dek, { oid, gzip: true }), objectsIndex);
+            oids.push(oid);
+            offset += n;
+          }
+        } finally {
+          fs.closeSync(fd);
+        }
+        // torn read? the tool may have appended while we were reading — a
+        // changed file is left for the next sync instead of catalogued in
+        // an inconsistent state (uploaded chunks stay reusable)
+        const st = fs.statSync(f.abs);
+        if (st.size !== f.size || st.mtimeMs !== f.mtimeMs) {
+          log.warn(`${logical} 이 읽는 중에 변했습니다 — 다음 동기화로 미룹니다.`);
+          return;
+        }
+        newEntries[logical] = {
+          hash: f.hash, size: f.size, mtime: Math.round(f.mtimeMs), exec: f.exec,
+          tier, objects: oids, chunkSize: CHUNK_SIZE, gzip: true,
+        };
+      }
       entriesChanged = true;
       applied.uploaded.push(logical);
     };
 
+    // ---- conflicts: jsonl resolves itself where the data allows it ----
+    const resolutions = new Map();
+    const conflictNotes = [];
+    for (const p of plan.conflicts.slice()) {
+      const src = sourceFor(p);
+      if (src?.tier === 'D' && p.endsWith('.jsonl')) {
+        const remoteBuf = await download(p, remoteEntries[p]);
+        const localBuf = fs.readFileSync(local.get(p).abs);
+        const auto = resolveAppendOnly(localBuf, remoteBuf);
+        if (auto?.action === 'take') {
+          if (auto.side === 'a') {
+            plan.uploads.push(p); // local is simply ahead
+          } else if (await writeLocal(p, remoteEntries[p], remoteBuf)) {
+            applied.downloaded.push(p);
+          }
+          plan.conflicts.splice(plan.conflicts.indexOf(p), 1);
+          continue;
+        }
+        if (src.lineUnion) {
+          const merged = lineUnion(localBuf, remoteBuf);
+          atomicWrite(local.get(p).abs, merged);
+          const f = local.get(p);
+          local.set(p, { ...f, hash: sha256Hex(merged), size: merged.length, packed: undefined });
+          plan.uploads.push(p);
+          plan.conflicts.splice(plan.conflicts.indexOf(p), 1);
+          conflictNotes.push({ path: p, choice: 'merge-lines', machineId });
+          continue;
+        }
+      }
+      const choice = await io.resolveConflict(p, {
+        localHash: localHashes[p],
+        remoteHash: remote[p],
+      });
+      if (choice === 'pending') {
+        plan.pending.push(p);
+        continue;
+      }
+      resolutions.set(p, choice);
+      conflictNotes.push({ path: p, choice, machineId });
+    }
+
     // gate the whole upload set before anything is written anywhere
     for (const p of plan.uploads) {
       const f = local.get(p);
-      assertClean(p, f.packed ?? fs.readFileSync(f.abs), allowed);
+      if ((sourceFor(p)?.tier ?? 'A') === 'D') continue; // counted during upload
+      if (f.packed || f.size <= CHUNK_SIZE) {
+        assertClean(p, f.packed ?? fs.readFileSync(f.abs), allowed);
+      }
     }
 
     // ---- downloads (remote is authoritative for these paths) ----
-    for (const p of plan.downloads) {
+    await pool(plan.downloads, 4, async (p) => {
       const buf = await download(p, remoteEntries[p]);
       if (await writeLocal(p, remoteEntries[p], buf)) applied.downloaded.push(p);
-    }
+    });
 
     // ---- uploads ----
-    for (const p of plan.uploads) await upload(p);
+    await pool(plan.uploads, 4, upload);
 
     // ---- resolved conflicts ----
     for (const [p, choice] of resolutions) {
@@ -227,7 +315,12 @@ export async function runSync({
 
     mirror(applied);
 
-    return { generation, plan, applied, pending: plan.pending, meta, metaFileId };
+    if (tierDFindings > 0) {
+      log.warn(`세션 기록에서 자격증명처럼 보이는 내용 ${tierDFindings}건이 올라갔습니다. ` +
+        '암호화되어 저장되지만, 대화에 붙여넣었던 키가 있는지 한번 돌아보세요.');
+    }
+
+    return { generation, plan, applied, pending: plan.pending, tierDFindings, meta, metaFileId };
   }
   throw new Error(`커밋 경합이 ${MAX_COMMIT_RETRIES}회 반복되었습니다. 잠시 후 다시 시도하세요.`);
 }
