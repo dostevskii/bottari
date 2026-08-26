@@ -54,7 +54,8 @@ test('MCP golden conversation', async () => {
     const names = list.result.tools.map((t) => t.name);
     assert.deepEqual(names.sort(), [
       'bottari_get_conflict_diff', 'bottari_list_generations',
-      'bottari_projects_list', 'bottari_resolve_conflicts', 'bottari_status', 'bottari_sync',
+      'bottari_projects_list', 'bottari_resolve_conflicts', 'bottari_restore',
+      'bottari_status', 'bottari_sync',
     ]);
     // registering folders decides what leaves the machine — human-only, CLI-only
     assert.ok(!names.includes('bottari_projects_add'));

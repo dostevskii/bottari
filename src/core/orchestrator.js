@@ -9,13 +9,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { decideAll, UPLOAD, DOWNLOAD, DIVERGED } from './merge.js';
 import {
-  openStore, readMeta, getManifestById, putObject, getObject,
+  openStore, readMeta, getManifestById, putObject,
   listObjects, commitGeneration,
 } from './generation.js';
+import { materialize, fetchEntry } from './restore.js';
 import { scanLocal, buildScanCache } from './snapshot.js';
 import { allSources, sourceFor, logicalToLocal, mirrorTargets } from '../paths/mapping.js';
 import { findCaseCollisions } from '../paths/normalize.js';
-import { machineContext, loadOverlay } from '../transform/index.js';
+import { machineContext } from '../transform/index.js';
 import { assertClean, loadAllowed, scanBuffer } from '../scan/secrets.js';
 import { resolveAppendOnly, lineUnion } from './jsonl.js';
 import { newManifest, parseManifest, serializeManifest, hashesOf } from '../model/manifest.js';
@@ -96,40 +97,13 @@ export async function runSync({
     const allowed = loadAllowed();
     let tierDFindings = 0;
 
-    const writeLocal = async (logical, entry, buf, { suffix = '' } = {}) => {
-      const target = logicalToLocal(logical);
-      if (!target) {
-        log.warn(`이 머신이 모르는 경로라 내려받지 않습니다: ${logical}`);
-        return false;
-      }
-      const src = sourceFor(logical);
-      let out = buf;
-      if (src?.transform && logical === src.logical && !suffix) {
-        // Tier B carries the machine-neutral form; reassemble this
-        // machine's file from it: expand + this machine's overlay.
-        let currentRaw = null;
-        try { currentRaw = fs.readFileSync(target); } catch { /* first arrival */ }
-        out = await src.transform.unpack(buf, { overlay: loadOverlay(logical), ctx, currentRaw });
-      }
-      atomicWrite(target + suffix, out);
-      if (entry.exec && process.platform !== 'win32') {
-        try { fs.chmodSync(target + suffix, 0o755); } catch { /* fs without modes */ }
-      }
-      return true;
+    const writeLocal = async (logical, entry, buf, opts = {}) => {
+      const ok = await materialize(logical, entry, buf, { ctx, ...opts });
+      if (!ok) log.warn(`이 머신이 모르는 경로라 내려받지 않습니다: ${logical}`);
+      return ok;
     };
 
-    const download = async (logical, entry) => {
-      const parts = [];
-      for (const oid of entry.objects) {
-        parts.push(unseal(await getObject(store, oid, objectsIndex), dek, { expectOid: oid }).plain);
-      }
-      const buf = Buffer.concat(parts);
-      const got = sha256Hex(buf);
-      if (got !== entry.hash) {
-        throw new Error(`내려받은 ${logical} 의 해시가 매니페스트와 다릅니다 (저장소 손상 의심)`);
-      }
-      return buf;
-    };
+    const download = (logical, entry) => fetchEntry(store, dek, entry, objectsIndex, logical);
 
     const gateOrReport = (logical, buf, tier) => {
       if (tier === 'D') {

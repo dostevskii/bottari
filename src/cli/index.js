@@ -27,6 +27,18 @@ const COMMANDS = new Map([
     summary: '클라우드의 세대 목록을 봅니다',
     load: () => import('./status.js').then((m) => ({ default: m.generations })),
   }],
+  ['restore', {
+    summary: '이전 세대로 되돌립니다 (--generation N [--path 접두어] [--dry-run] [--force])',
+    load: () => import('./restore.js'),
+  }],
+  ['doctor', {
+    summary: '환경·저장소 정합성을 진단합니다',
+    load: () => import('./doctor.js'),
+  }],
+  ['prune', {
+    summary: '오래된 세대를 정리해 용량을 회수합니다 (--keep N [--yes])',
+    load: () => import('./prune.js'),
+  }],
   ['projects', {
     summary: '동기화할 프로젝트 폴더를 등록/해제합니다 (list / add <경로> / remove <이름>)',
     load: () => import('./projects.js'),

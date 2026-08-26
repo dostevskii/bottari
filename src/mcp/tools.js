@@ -18,9 +18,12 @@ import {
 import { loadPendingState, recordPending, setResolution, resolutionFor } from '../core/conflicts.js';
 import { parseManifest } from '../model/manifest.js';
 import { loadConfig, loadProfile } from '../model/config.js';
-import { logicalToLocal } from '../paths/mapping.js';
+import { logicalToLocal, allSources } from '../paths/mapping.js';
 import { unseal } from '../crypto/envelope.js';
 import { redactText } from '../scan/secrets.js';
+import { manifestAtGeneration, planRestore, fetchEntry, materialize } from '../core/restore.js';
+import { scanLocal } from '../core/snapshot.js';
+import { machineContext } from '../transform/index.js';
 
 async function openContext() {
   const client = makeClient({ getAccessToken: () => getAccessToken({ interactive: false }) });
@@ -204,6 +207,44 @@ export const TOOLS = [
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     async handler() {
       return { projects: loadConfig().projects };
+    },
+  },
+  {
+    name: 'bottari_restore',
+    description: '이전 세대의 파일 상태로 되돌립니다. confirm 없이 호출하면 무엇이 바뀔지만 보여주고, 실제 적용은 사용자의 동의를 확인한 뒤 confirm:true 로 다시 호출해야 합니다. 파일이 지워지는 일은 없습니다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        generation: { type: 'number' },
+        pathPrefix: { type: 'string', description: '논리 경로 접두어로 범위 제한' },
+        confirm: { type: 'boolean', description: 'true 일 때만 실제로 파일을 바꿉니다' },
+      },
+      required: ['generation'],
+      additionalProperties: false,
+    },
+    async handler({ generation, pathPrefix, confirm = false }) {
+      const ctx = await openContext();
+      const manifest = await manifestAtGeneration(ctx.store, ctx.meta, ctx.dek, generation);
+      const { files } = await scanLocal(allSources());
+      const localHashes = Object.fromEntries([...files].map(([p, f]) => [p, f.hash]));
+      const plan = planRestore(manifest, localHashes, { pathPrefix });
+      if (!confirm) {
+        return {
+          generation,
+          wouldWrite: plan.write,
+          unchanged: plan.unchanged,
+          foreign: plan.foreign,
+          note: '적용하려면 사용자에게 이 목록을 보여 동의를 받은 뒤 confirm:true 로 다시 호출하세요.',
+        };
+      }
+      const index = await listObjects(ctx.store);
+      const mctx = machineContext();
+      const written = [];
+      for (const p of plan.write) {
+        const buf = await fetchEntry(ctx.store, ctx.dek, manifest.entries[p], index, p);
+        if (await materialize(p, manifest.entries[p], buf, { ctx: mctx })) written.push(p);
+      }
+      return { generation, written, note: '다음 bottari_sync 가 이 상태를 새 세대로 올립니다.' };
     },
   },
   // No bottari_projects_add here on purpose: registering a folder decides
