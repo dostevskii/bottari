@@ -11,6 +11,22 @@ const pkg = require('../../package.json');
 
 // name -> { summary, load: () => import(...) }
 const COMMANDS = new Map([
+  ['init', {
+    summary: '처음 시작: 클라우드 상태를 보고 올리기/동기화를 안내합니다',
+    load: () => import('./init.js'),
+  }],
+  ['sync', {
+    summary: '동기화 (--dry-run 미리보기, --remember-key 열쇠 보관, --force-unlock)',
+    load: () => import('./sync.js'),
+  }],
+  ['status', {
+    summary: '무엇이 오르내릴지 미리 봅니다 (아무것도 바꾸지 않음)',
+    load: () => import('./status.js'),
+  }],
+  ['generations', {
+    summary: '클라우드의 세대 목록을 봅니다',
+    load: () => import('./status.js').then((m) => ({ default: m.generations })),
+  }],
   ['login', {
     summary: 'Google Drive에 로그인합니다 (로그인 정보는 OS 자격증명 저장소에 보관)',
     load: () => import('./login.js'),
