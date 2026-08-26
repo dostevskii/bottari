@@ -9,6 +9,9 @@
 
 import path from 'node:path';
 import { homeDir } from '../util/fs.js';
+import * as claudeSettings from '../transform/claude-settings.js';
+import * as claudeJson from '../transform/claude-json.js';
+import * as codexConfig from '../transform/codex-config.js';
 
 // Tier A sources. kind 'dir' walks recursively, 'file' is one optional file.
 export function tierASources() {
@@ -22,6 +25,31 @@ export function tierASources() {
     { logical: 'codex/automations', local: path.join(home, '.codex', 'automations'), kind: 'dir', tier: 'A' },
     { logical: 'codex/hooks.json', local: path.join(home, '.codex', 'hooks.json'), kind: 'file', tier: 'A' },
   ];
+}
+
+// Tier B: shared after a transform strips machine reality (paths, secrets).
+export function tierBSources() {
+  const home = homeDir();
+  return [
+    { logical: 'claude/settings.json', local: path.join(home, '.claude', 'settings.json'), kind: 'file', tier: 'B', transform: claudeSettings },
+    { logical: 'claude/settings.local.json', local: path.join(home, '.claude', 'settings.local.json'), kind: 'file', tier: 'B', transform: claudeSettings },
+    { logical: 'claude-root/claude.json', local: path.join(home, '.claude.json'), kind: 'file', tier: 'B', transform: claudeJson },
+    { logical: 'codex/config.toml', local: path.join(home, '.codex', 'config.toml'), kind: 'file', tier: 'B', transform: codexConfig },
+  ];
+}
+
+export function allSources() {
+  return [...tierASources(), ...tierBSources()];
+}
+
+// The source a logical path belongs to — including keep-both copies, which
+// carry a '.bottari-rN' suffix after a known file path.
+export function sourceFor(logical) {
+  for (const src of allSources()) {
+    if (logical === src.logical) return src;
+    if (src.kind === 'dir' && logical.startsWith(src.logical + '/')) return src;
+  }
+  return null;
 }
 
 // After materializing a logical prefix, copy it to these additional local
@@ -53,11 +81,15 @@ export function isExcluded(relPath) {
 // logical path -> absolute local path on this machine, or null when the
 // path belongs to no known namespace (a foreign entry we leave alone).
 export function logicalToLocal(logical) {
-  for (const src of tierASources()) {
+  for (const src of allSources()) {
     if (logical === src.logical) return src.local;
     if (src.kind === 'dir' && logical.startsWith(src.logical + '/')) {
       const rest = logical.slice(src.logical.length + 1);
       return path.join(src.local, ...rest.split('/'));
+    }
+    // keep-both copy of a single-file source lands next to the original
+    if (src.kind === 'file' && logical.startsWith(src.logical + '.bottari-r')) {
+      return src.local + logical.slice(src.logical.length);
     }
   }
   return null;

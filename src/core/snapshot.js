@@ -7,9 +7,11 @@
 
 import fs from 'node:fs';
 import { walk } from '../util/fs.js';
-import { sha256File } from '../util/hash.js';
+import { sha256File, sha256Hex } from '../util/hash.js';
 import { toLogical } from '../paths/normalize.js';
 import { isExcluded } from '../paths/mapping.js';
+import { machineContext, saveOverlay } from '../transform/index.js';
+import { log } from '../util/log.js';
 
 // sources: [{logical, local, kind}] — returns
 //   { files: Map<logical, {hash,size,mtimeMs,exec,abs}>, skipped: [...] }
@@ -31,6 +33,8 @@ export async function scanLocal(sources, scanCache = {}) {
     });
   };
 
+  const ctx = machineContext();
+
   for (const src of sources) {
     if (src.kind === 'file') {
       let st;
@@ -40,7 +44,29 @@ export async function scanLocal(sources, scanCache = {}) {
         continue; // an optional file this machine simply does not have
       }
       if (!st.isFile()) continue;
-      await record(toLogical(src.logical), src.local, {
+      const logical = toLogical(src.logical);
+      if (src.transform) {
+        // Tier B: what syncs is the transformed (machine-neutral) content,
+        // so that is what gets hashed. Small files — no cache shortcut.
+        try {
+          const raw = fs.readFileSync(src.local);
+          const { shared, overlay } = await src.transform.pack(raw, ctx);
+          saveOverlay(logical, overlay);
+          files.set(logical, {
+            hash: sha256Hex(shared),
+            size: shared.length,
+            mtimeMs: st.mtimeMs,
+            exec: false,
+            abs: src.local,
+            packed: shared,
+          });
+        } catch (e) {
+          log.warn(`${logical} 변환 실패 — 이 파일은 이번 동기화에서 건너뜁니다 (${e.message})`);
+          skipped.push({ rel: logical, reason: 'transform', source: src.logical });
+        }
+        continue;
+      }
+      await record(logical, src.local, {
         size: st.size,
         mtimeMs: st.mtimeMs,
         exec: process.platform !== 'win32' && (st.mode & 0o111) !== 0,

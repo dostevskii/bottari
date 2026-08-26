@@ -57,16 +57,40 @@ async function pick() {
   return backend;
 }
 
+// No OS keyring can enumerate our entries portably, so user-facing
+// secrets (the 'secret:' namespace) keep a name index — names only, the
+// values stay in the credential store.
+const indexPath = () => path.join(homeDir(), '.bottari', 'secret-names.json');
+
+function readIndex() {
+  try { return JSON.parse(fs.readFileSync(indexPath(), 'utf8')); } catch { return []; }
+}
+
+function trackName(name, present) {
+  if (!name.startsWith('secret:')) return;
+  const bare = name.slice('secret:'.length);
+  const names = new Set(readIndex());
+  if (present) names.add(bare);
+  else names.delete(bare);
+  atomicWrite(indexPath(), JSON.stringify([...names].sort(), null, 2) + '\n');
+}
+
+export function listSecretNames() {
+  return readIndex();
+}
+
 export async function getSecret(name) {
   return (await pick()).get(name);
 }
 
 export async function setSecret(name, value) {
   (await pick()).set(name, value);
+  trackName(name, true);
 }
 
 export async function deleteSecret(name) {
   (await pick()).remove(name);
+  trackName(name, false);
 }
 
 export async function backendLabel() {

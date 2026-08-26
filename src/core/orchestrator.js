@@ -13,8 +13,10 @@ import {
   listObjects, commitGeneration,
 } from './generation.js';
 import { scanLocal, buildScanCache } from './snapshot.js';
-import { tierASources, logicalToLocal, mirrorTargets } from '../paths/mapping.js';
+import { allSources, sourceFor, logicalToLocal, mirrorTargets } from '../paths/mapping.js';
 import { findCaseCollisions } from '../paths/normalize.js';
+import { machineContext, loadOverlay } from '../transform/index.js';
+import { assertClean, loadAllowed } from '../scan/secrets.js';
 import { newManifest, parseManifest, serializeManifest, hashesOf } from '../model/manifest.js';
 import { loadState, saveState } from '../model/state.js';
 import { seal, unseal } from '../crypto/envelope.js';
@@ -28,7 +30,7 @@ const MAX_COMMIT_RETRIES = 3;
 // io.resolveConflict(path) -> 'local' | 'remote' | 'both'  (CLI asks the
 // user; MCP records the conflict and returns 'pending' to defer it).
 export async function runSync({
-  store, dek, meta, metaFileId, machineId, io, dryRun = false, sources = tierASources(),
+  store, dek, meta, metaFileId, machineId, io, dryRun = false, sources = allSources(),
 }) {
   if (!meta) {
     // A null meta must never reach the commit path: {...null, head} would
@@ -92,13 +94,25 @@ export async function runSync({
     let entriesChanged = false;
     const applied = { uploaded: [], downloaded: [], kept: [] };
 
-    const writeLocal = (logical, entry, buf, { suffix = '' } = {}) => {
+    const ctx = machineContext();
+    const allowed = loadAllowed();
+
+    const writeLocal = async (logical, entry, buf, { suffix = '' } = {}) => {
       const target = logicalToLocal(logical);
       if (!target) {
         log.warn(`이 머신이 모르는 경로라 내려받지 않습니다: ${logical}`);
         return false;
       }
-      atomicWrite(target + suffix, buf);
+      const src = sourceFor(logical);
+      let out = buf;
+      if (src?.transform && logical === src.logical && !suffix) {
+        // Tier B carries the machine-neutral form; reassemble this
+        // machine's file from it: expand + this machine's overlay.
+        let currentRaw = null;
+        try { currentRaw = fs.readFileSync(target); } catch { /* first arrival */ }
+        out = await src.transform.unpack(buf, { overlay: loadOverlay(logical), ctx, currentRaw });
+      }
+      atomicWrite(target + suffix, out);
       if (entry.exec && process.platform !== 'win32') {
         try { fs.chmodSync(target + suffix, 0o755); } catch { /* fs without modes */ }
       }
@@ -120,22 +134,32 @@ export async function runSync({
 
     const upload = async (logical) => {
       const f = local.get(logical);
-      const buf = fs.readFileSync(f.abs);
+      const buf = f.packed ?? fs.readFileSync(f.abs);
+      const tier = sourceFor(logical)?.tier ?? 'A';
+      // The fail-closed gate: transformers are supposed to have stripped
+      // credentials from tiers A/B — assume they have a bug.
+      assertClean(logical, buf, allowed);
       const hash = sha256Hex(buf);
       const oid = objectId(objKey, hash);
       await putObject(store, oid, seal(buf, dek, { oid, gzip: true }), objectsIndex);
       newEntries[logical] = {
         hash, size: buf.length, mtime: Math.round(f.mtimeMs), exec: f.exec,
-        tier: 'A', objects: [oid], gzip: true,
+        tier, objects: [oid], gzip: true,
       };
       entriesChanged = true;
       applied.uploaded.push(logical);
     };
 
+    // gate the whole upload set before anything is written anywhere
+    for (const p of plan.uploads) {
+      const f = local.get(p);
+      assertClean(p, f.packed ?? fs.readFileSync(f.abs), allowed);
+    }
+
     // ---- downloads (remote is authoritative for these paths) ----
     for (const p of plan.downloads) {
       const buf = await download(p, remoteEntries[p]);
-      if (writeLocal(p, remoteEntries[p], buf)) applied.downloaded.push(p);
+      if (await writeLocal(p, remoteEntries[p], buf)) applied.downloaded.push(p);
     }
 
     // ---- uploads ----
@@ -145,7 +169,7 @@ export async function runSync({
     for (const [p, choice] of resolutions) {
       if (choice === 'remote') {
         const buf = await download(p, remoteEntries[p]);
-        if (writeLocal(p, remoteEntries[p], buf)) applied.downloaded.push(p);
+        if (await writeLocal(p, remoteEntries[p], buf)) applied.downloaded.push(p);
       } else if (choice === 'local') {
         await upload(p);
       } else if (choice === 'both') {
@@ -153,7 +177,7 @@ export async function runSync({
         // becomes its own catalog entry, so no machine ever loses either.
         const copyLogical = `${p}.bottari-r${nextGen}`;
         const buf = await download(p, remoteEntries[p]);
-        if (writeLocal(p, remoteEntries[p], buf, { suffix: `.bottari-r${nextGen}` })) {
+        if (await writeLocal(p, remoteEntries[p], buf, { suffix: `.bottari-r${nextGen}` })) {
           newEntries[copyLogical] = { ...remoteEntries[p], tier: remoteEntries[p].tier ?? 'A' };
           applied.kept.push(copyLogical);
         }

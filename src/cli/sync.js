@@ -68,6 +68,13 @@ export default async function sync(args) {
   const dryRun = args.includes('--dry-run');
   const force = args.includes('--force-unlock');
   const rememberKey = args.includes('--remember-key');
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--allow-finding' && args[i + 1]) {
+      const { addAllowed } = await import('../scan/secrets.js');
+      addAllowed(args[++i]);
+      log.out(`지문 허용 목록에 추가: ${args[i]}`);
+    }
+  }
   const ctx = await openCloud();
   if (!ctx.meta) {
     log.error('클라우드에 보따리가 아직 없습니다. `bottari init` 으로 시작하세요.');
