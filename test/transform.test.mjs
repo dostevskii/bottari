@@ -200,6 +200,33 @@ test('a PATH-style list expands every placeholder, not just the first', () => {
   assert.equal(out, "P = 'C:\\Users\\example\\.codex;C:\\Users\\example\\AppData\\Local'");
 });
 
+// The real incident: a shared hooks.state table expanded into the exact
+// table this machine already had in its overlay, and codex refused the
+// file with "duplicate key".
+test('codex config: a shared section that expands onto an overlay one is dropped', async () => {
+  const shared = Buffer.from([
+    "[hooks.state.'${BOTTARI_HOME}/.codex/hooks.json:stop:0:0']",
+    'trusted_hash = "sha256:aaa"',
+  ].join('\n'));
+  const overlay = {
+    root: [],
+    sections: ["[hooks.state.'/home/example/.codex/hooks.json:stop:0:0']\ntrusted_hash = \"sha256:bbb\""],
+  };
+  const out = (await codexConfig.unpack(shared, { overlay, ctx: LNX })).toString();
+  const headers = out.split('\n').filter((l) => l.startsWith('[hooks.state'));
+  assert.equal(headers.length, 1, `the table must appear once, got:\n${out}`);
+  assert.ok(out.includes('sha256:bbb'), "this machine's own value wins");
+});
+
+test('codex config: a root key held in the overlay is not duplicated by the shared half', async () => {
+  const shared = Buffer.from('model = "shared"\nnotify = ["from-shared"]');
+  const overlay = { root: ['notify = ["from-this-machine"]'], sections: [] };
+  const out = (await codexConfig.unpack(shared, { overlay, ctx: LNX })).toString();
+  assert.equal(out.split('\n').filter((l) => l.startsWith('notify')).length, 1);
+  assert.ok(out.includes('from-this-machine') && !out.includes('from-shared'));
+  assert.ok(out.includes('model = "shared"'), 'unrelated shared keys survive');
+});
+
 test('codex config: a section naming an OS-specific binary stays machine-local', async () => {
   const fixture = [
     '[mcp_servers.node_repl]',

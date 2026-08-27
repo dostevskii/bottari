@@ -79,15 +79,31 @@ export async function pack(raw, ctx) {
   return { shared: Buffer.from(sharedText, 'utf8'), overlay };
 }
 
+const headerKey = (line) => line.trim().replace(/\s+/g, '');
+const rootKey = (line) => (line.match(/^\s*([^=#\s]+)\s*=/) ?? [])[1];
+
 export async function unpack(sharedBuf, { overlay, ctx }) {
   const style = (ctx.platform ?? process.platform) === 'win32' ? 'backslash' : 'slash';
   const expanded = expand(sharedBuf.toString('utf8'), { ...ctx, style });
   const { root, sections } = toSections(expanded);
 
+  // A shared entry can expand into exactly what this machine already
+  // keeps in its overlay — a hooks.state table keyed by an absolute path
+  // is the same table once ${BOTTARI_HOME} resolves. Emitting both makes
+  // TOML reject the file for a duplicate key, so the machine's own copy
+  // wins and the shared one is dropped.
+  const ownHeaders = new Set((overlay?.sections ?? []).map((s) => headerKey(s.split('\n')[0])));
+  const ownRootKeys = new Set((overlay?.root ?? []).map(rootKey).filter(Boolean));
+
   const parts = [
-    ...root,
+    ...root.filter((l) => {
+      const k = rootKey(l);
+      return !k || !ownRootKeys.has(k);
+    }),
     ...(overlay?.root ?? []),
-    ...sections.map((s) => [s.header, ...s.lines].join('\n')),
+    ...sections
+      .filter((s) => !ownHeaders.has(headerKey(s.header)))
+      .map((s) => [s.header, ...s.lines].join('\n')),
     ...(overlay?.sections ?? []),
   ];
   return Buffer.from(parts.join('\n'), 'utf8');
