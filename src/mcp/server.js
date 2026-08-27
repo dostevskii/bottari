@@ -60,18 +60,18 @@ export function serve({ input = process.stdin, output = process.stdout } = {}) {
     if (method === 'tools/call') {
       const tool = TOOLS.find((t) => t.name === params?.name);
       if (!tool) {
-        fail(id, -32602, `알 수 없는 도구입니다: ${params?.name}`);
+        fail(id, -32602, `Unknown tool: ${params?.name}`);
         return;
       }
       try {
         const result = await tool.handler(params?.arguments ?? {});
         reply(id, { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] });
       } catch (e) {
-        reply(id, { content: [{ type: 'text', text: '오류: ' + e.message }], isError: true });
+        reply(id, { content: [{ type: 'text', text: 'error: ' + e.message }], isError: true });
       }
       return;
     }
-    fail(id, -32601, `지원하지 않는 메서드입니다: ${method}`);
+    fail(id, -32601, `Unsupported method: ${method}`);
   });
 
   return new Promise((resolve) => rl.on('close', resolve));

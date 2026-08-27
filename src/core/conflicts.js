@@ -41,10 +41,10 @@ export function recordPending(details) {
 export function setResolution(id, choice) {
   const state = loadPendingState();
   if (!state.conflicts.some((c) => c.id === id)) {
-    throw new Error(`미해소 충돌 중에 id '${id}' 가 없습니다.`);
+    throw new Error(`No open conflict has the id '${id}'.`);
   }
   if (!['local', 'remote', 'both'].includes(choice)) {
-    throw new Error(`선택지는 local/remote/both 중 하나여야 합니다: ${choice}`);
+    throw new Error(`The choice must be local, remote or both: ${choice}`);
   }
   state.resolutions[id] = choice;
   atomicWrite(filePath(), JSON.stringify(state, null, 2) + '\n');

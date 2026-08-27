@@ -15,12 +15,12 @@ const fileName = (machineId) => `inventory-${machineId}.json.enc`;
 export default async function tools(args) {
   const [sub] = args;
   if (sub !== 'capture' && sub !== 'show') {
-    log.error('사용법: bottari tools [capture | show]');
+    log.error('usage: bottari tools [capture | show]');
     return 1;
   }
   const ctx = await openCloud();
   if (!ctx.meta) {
-    log.error('클라우드에 보따리가 없습니다. `bottari init` 먼저.');
+    log.error('No bundle in the cloud. Run `bottari init` first.');
     return 1;
   }
   const dek = await obtainDek(ctx);
@@ -36,9 +36,9 @@ export default async function tools(args) {
       fileId: existing?.id,
       data: seal(Buffer.from(JSON.stringify(inv, null, 2)), dek, { gzip: true }),
     });
-    log.out('이 컴퓨터의 도구 목록을 기록했습니다:');
+    log.out('Recorded this machine\'s tools:');
     for (const [tool, v] of Object.entries(inv.tools)) {
-      log.out(`  ${tool.padEnd(8)} ${v ?? '(없음)'}`);
+      log.out(`  ${tool.padEnd(8)} ${v ?? '(not installed)'}`);
     }
     return 0;
   }
@@ -48,20 +48,20 @@ export default async function tools(args) {
   const records = (await ctx.files.list(ctx.store.machinesId))
     .filter((f) => /^inventory-.+\.json\.enc$/.test(f.name));
   if (!records.length) {
-    log.out('기록된 도구 목록이 없습니다. 각 컴퓨터에서 `bottari tools capture` 를 실행하세요.');
+    log.out('No tool records yet. Run `bottari tools capture` on each machine.');
     return 0;
   }
   for (const f of records) {
     const inv = JSON.parse(unseal(await ctx.files.download(f.id), dek).plain.toString('utf8'));
     const isMe = f.name === fileName(profile.machineId);
     log.out('');
-    log.out(`■ ${inv.os}/${inv.arch}  (${inv.capturedAt.slice(0, 10)})${isMe ? '  ← 이 컴퓨터' : ''}`);
+    log.out(`# ${inv.os}/${inv.arch}  (${inv.capturedAt.slice(0, 10)})${isMe ? '  <- this machine' : ''}`);
     if (isMe) {
-      for (const [tool, v] of Object.entries(inv.tools)) log.out(`  ${tool.padEnd(8)} ${v ?? '(없음)'}`);
+      for (const [tool, v] of Object.entries(inv.tools)) log.out(`  ${tool.padEnd(8)} ${v ?? '(not installed)'}`);
       continue;
     }
     const diff = diffInventories(mine, inv);
-    if (!diff.length) log.out('  이 컴퓨터와 동일');
+    if (!diff.length) log.out('  same as this machine');
     else for (const line of diff) log.out(`  ${line}`);
   }
   return 0;

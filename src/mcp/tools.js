@@ -30,11 +30,11 @@ async function openContext() {
   const files = makeFiles(client);
   const remote = await fetchRemoteState(files);
   if (!remote.meta) {
-    throw new Error('클라우드에 보따리가 없습니다. 터미널에서 `bottari init` 을 먼저 실행하세요.');
+    throw new Error('No bundle in the cloud. Run `bottari init` in a terminal first.');
   }
   const dekHex = await getSecret('bottari-dek');
   if (!dekHex) {
-    throw new Error('열쇠가 이 컴퓨터에 보관되어 있지 않습니다. 터미널에서 `bottari sync --remember-key` 를 한 번 실행하세요.');
+    throw new Error('The key is not stored on this machine. Run `bottari sync --remember-key` once in a terminal.');
   }
   return { files, ...remote, dek: Buffer.from(dekHex, 'hex') };
 }
@@ -44,7 +44,7 @@ async function openContext() {
 function tinyDiff(aBuf, bBuf) {
   const MAX = 256 * 1024;
   if (aBuf.length > MAX || bBuf.length > MAX || aBuf.includes(0) || bBuf.includes(0)) {
-    return `내용이 크거나 이진 데이터입니다. 크기: 이 컴퓨터 ${aBuf.length}B ↔ 클라우드 ${bBuf.length}B`;
+    return `Content too large or binary. Sizes: this machine ${aBuf.length}B <-> cloud ${bBuf.length}B`;
   }
   const a = aBuf.toString('utf8').split('\n');
   const b = bBuf.toString('utf8').split('\n');
@@ -59,10 +59,10 @@ function tinyDiff(aBuf, bBuf) {
   const clip = (lines, from, to, mark) =>
     lines.slice(Math.max(from, 0), to + 1).slice(0, 12).map((l) => mark + ' ' + l);
   return [
-    `공통 ${start}행 이후가 갈라졌습니다.`,
-    '--- 이 컴퓨터 쪽 ---',
+    `The two sides diverge after ${start} common line(s).`,
+    '--- this machine ---',
     ...clip(a, start, endA, '<'),
-    '--- 클라우드 쪽 ---',
+    '--- cloud ---',
     ...clip(b, start, endB, '>'),
   ].join('\n');
 }
@@ -70,7 +70,7 @@ function tinyDiff(aBuf, bBuf) {
 export const TOOLS = [
   {
     name: 'bottari_status',
-    description: '무엇이 오르내릴지 미리 봅니다. 아무것도 바꾸지 않습니다.',
+    description: 'Preview what would go up or down. Changes nothing.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     async handler() {
       const ctx = await openContext();
@@ -84,10 +84,10 @@ export const TOOLS = [
   },
   {
     name: 'bottari_sync',
-    description: '동기화를 실행합니다. 충돌이 있으면 무충돌분만 커밋하고(합집합이라 항상 안전) 충돌 목록을 돌려줍니다. bottari_resolve_conflicts 로 답한 뒤 다시 호출하면 마무리됩니다.',
+    description: 'Run a sync. When conflicts exist, the conflict-free part is committed (union merge makes that always safe) and the conflict list is returned. Answer with bottari_resolve_conflicts, then call this again to finish.',
     inputSchema: {
       type: 'object',
-      properties: { dryRun: { type: 'boolean', description: '미리보기만' } },
+      properties: { dryRun: { type: 'boolean', description: 'preview only' } },
       additionalProperties: false,
     },
     async handler({ dryRun = false } = {}) {
@@ -124,7 +124,7 @@ export const TOOLS = [
   },
   {
     name: 'bottari_get_conflict_diff',
-    description: '미해소 충돌 하나의 양쪽 내용 차이를 보여줍니다.',
+    description: 'Show how the two sides of one unresolved conflict differ.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -134,7 +134,7 @@ export const TOOLS = [
     async handler({ id }) {
       const state = loadPendingState();
       const conflict = state.conflicts.find((c) => c.id === id);
-      if (!conflict) throw new Error(`미해소 충돌 중에 id '${id}' 가 없습니다.`);
+      if (!conflict) throw new Error(`No open conflict has the id '${id}'.`);
       const ctx = await openContext();
       const manifest = parseManifest(
         unseal(await getManifestById(ctx.store, ctx.meta.headManifestId), ctx.dek).plain,
@@ -154,7 +154,7 @@ export const TOOLS = [
   },
   {
     name: 'bottari_resolve_conflicts',
-    description: '충돌들에 대한 선택(local: 이 컴퓨터 것 / remote: 클라우드 것 / both: 둘 다 보존)을 기록합니다. 다음 bottari_sync 가 적용합니다.',
+    description: 'Record answers for conflicts (local: this machine\'s version / remote: the cloud\'s / both: keep both). The next bottari_sync applies them.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -180,13 +180,13 @@ export const TOOLS = [
       return {
         answered: Object.keys(state.resolutions).length,
         open: state.conflicts.length,
-        note: '다음 bottari_sync 호출이 이 선택을 적용합니다.',
+        note: 'The next bottari_sync call applies these answers.',
       };
     },
   },
   {
     name: 'bottari_list_generations',
-    description: '클라우드 보따리의 세대(버전) 목록을 봅니다.',
+    description: 'List the generations (versions) of the cloud bundle.',
     inputSchema: {
       type: 'object',
       properties: { limit: { type: 'number' } },
@@ -203,7 +203,7 @@ export const TOOLS = [
   },
   {
     name: 'bottari_projects_list',
-    description: '이 컴퓨터에 등록된 동기화 대상 프로젝트 폴더 목록입니다.',
+    description: 'List the project folders registered for sync on this machine.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     async handler() {
       return { projects: loadConfig().projects };
@@ -211,13 +211,13 @@ export const TOOLS = [
   },
   {
     name: 'bottari_restore',
-    description: '이전 세대의 파일 상태로 되돌립니다. confirm 없이 호출하면 무엇이 바뀔지만 보여주고, 실제 적용은 사용자의 동의를 확인한 뒤 confirm:true 로 다시 호출해야 합니다. 파일이 지워지는 일은 없습니다.',
+    description: 'Bring files back to an earlier generation. Without confirm it only previews what would change; apply by calling again with confirm:true after the user has agreed. Nothing ever gets deleted.',
     inputSchema: {
       type: 'object',
       properties: {
         generation: { type: 'number' },
-        pathPrefix: { type: 'string', description: '논리 경로 접두어로 범위 제한' },
-        confirm: { type: 'boolean', description: 'true 일 때만 실제로 파일을 바꿉니다' },
+        pathPrefix: { type: 'string', description: 'limit the scope by logical-path prefix' },
+        confirm: { type: 'boolean', description: 'only true actually changes files' },
       },
       required: ['generation'],
       additionalProperties: false,
@@ -234,7 +234,7 @@ export const TOOLS = [
           wouldWrite: plan.write,
           unchanged: plan.unchanged,
           foreign: plan.foreign,
-          note: '적용하려면 사용자에게 이 목록을 보여 동의를 받은 뒤 confirm:true 로 다시 호출하세요.',
+          note: 'To apply, show this list to the user, get their agreement, then call again with confirm:true.',
         };
       }
       const index = await listObjects(ctx.store);
@@ -244,7 +244,7 @@ export const TOOLS = [
         const buf = await fetchEntry(ctx.store, ctx.dek, manifest.entries[p], index, p);
         if (await materialize(p, manifest.entries[p], buf, { ctx: mctx })) written.push(p);
       }
-      return { generation, written, note: '다음 bottari_sync 가 이 상태를 새 세대로 올립니다.' };
+      return { generation, written, note: 'The next bottari_sync publishes this state as a new generation.' };
     },
   },
   // No bottari_projects_add here on purpose: registering a folder decides

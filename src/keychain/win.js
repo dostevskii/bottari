@@ -56,4 +56,4 @@ export function remove(name) {
   atomicWrite(VAULT(), JSON.stringify(vault, null, 2) + '\n');
 }
 
-export const label = 'Windows DPAPI (사용자 계정 귀속)';
+export const label = 'Windows DPAPI (bound to this user account)';

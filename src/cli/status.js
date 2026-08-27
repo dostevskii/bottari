@@ -10,7 +10,7 @@ import { log } from '../util/log.js';
 export default async function status() {
   const ctx = await openCloud();
   if (!ctx.meta) {
-    log.out('클라우드에 보따리가 없습니다. `bottari init` 으로 시작하세요.');
+    log.out('No bundle in the cloud yet. Start with `bottari init`.');
     return 0;
   }
   const dek = await obtainDek(ctx);
@@ -21,14 +21,14 @@ export default async function status() {
 export async function generations() {
   const ctx = await openCloud();
   if (!ctx.meta) {
-    log.out('클라우드에 보따리가 없습니다.');
+    log.out('No bundle in the cloud yet.');
     return 0;
   }
   const list = await listGenerations(ctx.store);
-  log.out(`세대 ${list.length}개, 현재 HEAD는 ${ctx.meta.head}:`);
+  log.out(`${list.length} generations, HEAD is ${ctx.meta.head}:`);
   for (const g of list) {
-    const mark = g.fileId === ctx.meta.headManifestId ? '  ← HEAD' : '';
-    log.out(`  세대 ${g.gen}  ${g.modifiedTime ?? ''}${mark}`);
+    const mark = g.fileId === ctx.meta.headManifestId ? '  <- HEAD' : '';
+    log.out(`  generation ${g.gen}  ${g.modifiedTime ?? ''}${mark}`);
   }
   return 0;
 }

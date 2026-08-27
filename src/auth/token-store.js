@@ -37,25 +37,25 @@ export async function getAccessToken({ interactive = true } = {}) {
       return cached.accessToken;
     } catch (e) {
       // A revoked grant should lead to a fresh sign-in, not a dead loop.
-      log.warn(`저장된 로그인 갱신에 실패했습니다 (${e.message}). 다시 로그인이 필요합니다.`);
+      log.warn(`Refreshing the stored sign-in failed (${e.message}). A new sign-in is needed.`);
       await deleteSecret(REFRESH_KEY);
     }
   }
 
   if (!interactive) {
-    throw new Error('로그인이 필요합니다. 터미널에서 `bottari login` 을 먼저 실행하세요.');
+    throw new Error('Sign-in required. Run `bottari login` in a terminal first.');
   }
 
   const t = await signIn({
     ...creds,
     onUrl: (url, opened) => {
-      log.info('Google 로그인 창을 기다립니다.');
-      if (!opened) log.info(`브라우저가 자동으로 열리지 않으면 이 주소로 접속하세요:\n  ${url}`);
+      log.info('Waiting for the Google sign-in…');
+      if (!opened) log.info(`If no browser window opened, use this address:\n  ${url}`);
     },
   });
   if (!t.refresh_token) {
-    throw new Error('Google이 refresh token을 내주지 않았습니다. 같은 클라이언트로 이미 승인된 적이 있다면 ' +
-      '계정 설정(myaccount.google.com/permissions)에서 앱 접근권을 지운 뒤 다시 시도하세요.');
+    throw new Error('Google did not hand out a refresh token. If this client was approved before, ' +
+      'remove its access at myaccount.google.com/permissions and try again.');
   }
   await setSecret(REFRESH_KEY, t.refresh_token);
   cached = { accessToken: t.access_token, expiresAt: Date.now() + t.expires_in * 1000 };

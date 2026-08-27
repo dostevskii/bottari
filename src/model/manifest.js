@@ -20,9 +20,9 @@ export function newManifest({ generation, parent, machineId, os, entries, confli
 }
 
 export function validateManifest(m) {
-  if (m?.schema !== SCHEMA) throw new Error(`지원하지 않는 매니페스트 스키마: ${m?.schema}`);
-  if (!Number.isInteger(m.generation) || m.generation < 1) throw new Error('매니페스트 세대 번호가 잘못되었습니다');
-  if (typeof m.entries !== 'object' || m.entries === null) throw new Error('매니페스트에 entries가 없습니다');
+  if (m?.schema !== SCHEMA) throw new Error(`Unsupported manifest schema: ${m?.schema}`);
+  if (!Number.isInteger(m.generation) || m.generation < 1) throw new Error('Bad manifest generation number');
+  if (typeof m.entries !== 'object' || m.entries === null) throw new Error('Manifest has no entries');
   return m;
 }
 

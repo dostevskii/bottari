@@ -104,8 +104,8 @@ test('chain walk finds any generation by id, and rejects nonsense', async () => 
   const g1 = await manifestAtGeneration(store, meta, dek, 1);
   assert.equal(g1.generation, 1);
   assert.equal(Object.keys(g1.entries).length, 1);
-  await assert.rejects(() => manifestAtGeneration(store, meta, dek, 99), /범위/);
-  await assert.rejects(() => manifestAtGeneration(store, meta, dek, 0), /범위/);
+  await assert.rejects(() => manifestAtGeneration(store, meta, dek, 99), /range/);
+  await assert.rejects(() => manifestAtGeneration(store, meta, dek, 0), /range/);
 });
 
 test('restore to generation 1: A returns to v1, B survives untouched', async () => {
@@ -167,5 +167,5 @@ test('prune --keep 2: old manifests and orphaned objects go, HEAD stays whole', 
   assert.equal(after.headReadable, true);
   assert.deepEqual(after.missingObjects, [], 'the kept chain lost nothing');
   // pruned generations are now unreachable, and say so clearly
-  await assert.rejects(() => manifestAtGeneration(store, meta, dek, 1), /닿을 수 없습니다|체인/);
+  await assert.rejects(() => manifestAtGeneration(store, meta, dek, 1), /unreachable|chain/);
 });

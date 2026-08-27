@@ -35,22 +35,22 @@ export async function obtainDek(ctx, { rememberKey = false } = {}) {
   if (ctx.meta) {
     const stored = await getSecret(DEK_KEY);
     if (stored) return Buffer.from(stored, 'hex');
-    const pass = await passphrase('보따리 암호를 입력하세요: ');
+    const pass = await passphrase('password: ');
     const dek = unwrapDek(ctx.meta.key, pass); // wrong passphrase throws here
     if (rememberKey) {
       await setSecret(DEK_KEY, dek.toString('hex'));
-      log.info('열쇠를 이 컴퓨터의 자격증명 저장소에 보관했습니다 (MCP에서 암호 없이 사용 가능).');
+      log.info('Key stored in this machine\'s credential store (MCP can now work without the password).');
     }
     return dek;
   }
 
   log.out('');
-  log.out('★ 지금 정하는 암호가 보따리 전체를 잠급니다.');
-  log.out('★ 이 암호를 잊어버리면 클라우드에 올린 데이터를 여는 방법이 없습니다.');
-  const pass = await passphrase('새 암호를 정하세요 (8자 이상): ');
-  if (pass.length < 8) throw new Error('암호는 8자 이상이어야 합니다.');
-  const again = await passphrase('확인을 위해 한 번 더: ');
-  if (pass !== again) throw new Error('두 입력이 서로 다릅니다. 처음부터 다시 시도하세요.');
+  log.out('* The password you choose now locks the entire bundle.');
+  log.out('* If you forget it, there is NO way to open the data in the cloud.');
+  const pass = await passphrase('new password (8+ characters): ');
+  if (pass.length < 8) throw new Error('The password must be at least 8 characters.');
+  const again = await passphrase('confirm password: ');
+  if (pass !== again) throw new Error('The two entries do not match. Start over.');
 
   const dek = generateDek();
   const meta = { schema: 1, key: wrapDek(dek, pass), head: 0, headManifestId: null };

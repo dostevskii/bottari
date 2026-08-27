@@ -9,6 +9,6 @@ const quiet = process.env.BOTTARI_QUIET === '1';
 export const log = {
   out: (msg) => process.stdout.write(msg + '\n'),
   info: (msg) => { if (!quiet) process.stderr.write(msg + '\n'); },
-  warn: (msg) => process.stderr.write('경고: ' + msg + '\n'),
-  error: (msg) => process.stderr.write('오류: ' + msg + '\n'),
+  warn: (msg) => process.stderr.write('warning: ' + msg + '\n'),
+  error: (msg) => process.stderr.write('error: ' + msg + '\n'),
 };

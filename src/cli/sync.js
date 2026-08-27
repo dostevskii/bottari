@@ -10,35 +10,35 @@ import { log } from '../util/log.js';
 
 async function cliConflict(p, { localHash, remoteHash }) {
   log.out('');
-  log.out(`충돌: ${p}`);
-  log.out(`  이 컴퓨터  ${localHash.slice(0, 12)}…`);
-  log.out(`  클라우드   ${remoteHash.slice(0, 12)}…`);
-  const k = await askChoice('어느 쪽을 남길까요?', [
-    { key: 'l', label: '이 컴퓨터 것 (클라우드 쪽이 갱신됨)' },
-    { key: 'r', label: '클라우드 것 (이 컴퓨터 파일이 바뀜)' },
-    { key: 'b', label: '둘 다 보존 (클라우드 것을 옆에 복사)' },
+  log.out(`conflict: ${p}`);
+  log.out(`  this machine  ${localHash.slice(0, 12)}…`);
+  log.out(`  cloud         ${remoteHash.slice(0, 12)}…`);
+  const k = await askChoice('Which one should win?', [
+    { key: 'l', label: 'this machine\'s version (the cloud gets updated)' },
+    { key: 'r', label: 'the cloud\'s version (this machine\'s file changes)' },
+    { key: 'b', label: 'keep both (the cloud version lands as a copy next to the file)' },
   ]);
   return { l: 'local', r: 'remote', b: 'both' }[k];
 }
 
 function report(r) {
   if (r.dryRun) {
-    log.out(`[미리보기] 현재 세대 ${r.generation}`);
-    for (const p of r.plan.uploads) log.out(`  올림      ${p}`);
-    for (const p of r.plan.downloads) log.out(`  내림      ${p}`);
-    for (const p of r.plan.conflicts) log.out(`  충돌 예정 ${p}`);
+    log.out(`[preview] current generation ${r.generation}`);
+    for (const p of r.plan.uploads) log.out(`  up        ${p}`);
+    for (const p of r.plan.downloads) log.out(`  down      ${p}`);
+    for (const p of r.plan.conflicts) log.out(`  conflict  ${p}`);
     if (!r.plan.uploads.length && !r.plan.downloads.length && !r.plan.conflicts.length) {
-      log.out('  변경 없음 — 양쪽이 일치합니다.');
+      log.out('  nothing to do — both sides agree.');
     }
     return;
   }
   const a = r.applied;
   log.out('');
-  log.out(`동기화 완료 — 세대 ${r.generation}`);
-  log.out(`  올림 ${a.uploaded.length}개 · 내림 ${a.downloaded.length}개` +
-    (a.kept.length ? ` · 보존 사본 ${a.kept.length}개` : ''));
+  log.out(`synced — generation ${r.generation}`);
+  log.out(`  up ${a.uploaded.length} · down ${a.downloaded.length}` +
+    (a.kept.length ? ` · kept copies ${a.kept.length}` : ''));
   if (r.pending.length) {
-    log.out(`  미해소 충돌 ${r.pending.length}개 — \`bottari resolve\` 로 마저 정리하세요.`);
+    log.out(`  unresolved conflicts: ${r.pending.length} — finish them with \`bottari resolve\`.`);
   }
 }
 
@@ -72,12 +72,12 @@ export default async function sync(args) {
     if (args[i] === '--allow-finding' && args[i + 1]) {
       const { addAllowed } = await import('../scan/secrets.js');
       addAllowed(args[++i]);
-      log.out(`지문 허용 목록에 추가: ${args[i]}`);
+      log.out(`fingerprint allowed: ${args[i]}`);
     }
   }
   const ctx = await openCloud();
   if (!ctx.meta) {
-    log.error('클라우드에 보따리가 아직 없습니다. `bottari init` 으로 시작하세요.');
+    log.error('No bundle in the cloud yet. Start with `bottari init`.');
     return 1;
   }
   const dek = await obtainDek(ctx, { rememberKey });

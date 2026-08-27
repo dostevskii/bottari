@@ -21,8 +21,8 @@ test('manifest roundtrip and validation', () => {
   const back = parseManifest(serializeManifest(m));
   assert.deepEqual(back.entries, m.entries);
   assert.equal(back.generation, 3);
-  assert.throws(() => parseManifest(Buffer.from('{"schema":99}')), /스키마/);
-  assert.throws(() => parseManifest(Buffer.from('{"schema":1,"generation":0,"entries":{}}')), /세대 번호/);
+  assert.throws(() => parseManifest(Buffer.from('{"schema":99}')), /schema/);
+  assert.throws(() => parseManifest(Buffer.from('{"schema":1,"generation":0,"entries":{}}')), /generation/);
 });
 
 test('hashesOf projects the merge view', () => {

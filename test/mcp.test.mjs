@@ -69,7 +69,7 @@ test('MCP golden conversation', async () => {
     // a cloud tool with nothing signed in: a clean isError, not a crash
     const status = await call('tools/call', { name: 'bottari_status', arguments: {} });
     assert.equal(status.result.isError, true);
-    assert.match(status.result.content[0].text, /로그인|열쇠|보따리/);
+    assert.match(status.result.content[0].text, /Sign-in|key|bundle/i);
 
     const unknown = await call('tools/call', { name: 'no_such_tool', arguments: {} });
     assert.equal(unknown.error.code, -32602);

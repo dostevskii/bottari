@@ -13,30 +13,31 @@ import { log } from '../util/log.js';
 export default async function init(args) {
   const rememberKey = args.includes('--remember-key');
   const yes = args.includes('--yes'); // scripted runs cannot answer prompts
-  log.out('bottari 시작 — Google Drive에 로그인합니다.');
+  log.out('bottari — signing in to Google Drive.');
   const ctx = await openCloud();
 
   if (!ctx.meta) {
     log.out('');
-    log.out('클라우드에 보따리가 없습니다. 처음 시작하시는군요.');
-    log.out('이 컴퓨터의 스킬·설정을 정리하고 암호화해서 내 Google Drive의');
-    log.out('bottari 폴더에 올립니다. 평문은 클라우드에 올라가지 않습니다.');
+    log.out('No bundle in the cloud yet — this is a first start.');
+    log.out('This machine\'s skills and settings will be packed, encrypted and');
+    log.out('uploaded to the bottari folder of your Google Drive.');
+    log.out('Nothing leaves this machine unencrypted.');
     if (!yes) {
-      const go = await askChoice('진행할까요?', [
-        { key: 'y', label: '올린다' },
-        { key: 'n', label: '그만둔다' },
+      const go = await askChoice('Proceed?', [
+        { key: 'y', label: 'upload' },
+        { key: 'n', label: 'quit' },
       ]);
       if (go === 'n') return 0;
     }
   } else {
     log.out('');
-    log.out(`클라우드에 이미 보따리가 있습니다 (세대 ${ctx.meta.head}).`);
-    log.out('내려받아 이 컴퓨터와 비교·병합한 뒤, 결과를 다시 올립니다.');
-    log.out('한쪽에만 있는 것은 무조건 보존됩니다 — 지워지는 일은 없습니다.');
+    log.out(`The cloud already has a bundle (generation ${ctx.meta.head}).`);
+    log.out('It will be downloaded, merged with this machine, and uploaded again.');
+    log.out('Anything that exists on only one side is always kept — nothing gets deleted.');
     if (!yes) {
-      const go = await askChoice('진행할까요?', [
-        { key: 'y', label: '동기화한다' },
-        { key: 'n', label: '그만둔다' },
+      const go = await askChoice('Proceed?', [
+        { key: 'y', label: 'sync' },
+        { key: 'n', label: 'quit' },
       ]);
       if (go === 'n') return 0;
     }
@@ -45,6 +46,6 @@ export default async function init(args) {
   const dek = await obtainDek(ctx, { rememberKey });
   await performSync(ctx, dek, {});
   log.out('');
-  log.out('다음부터는 `bottari sync` 하나로 같은 일을 합니다.');
+  log.out('From now on, `bottari sync` does all of this in one step.');
   return 0;
 }

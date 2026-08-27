@@ -13,7 +13,7 @@ import { log } from '../util/log.js';
 const FALLBACK = () => path.join(homeDir(), '.bottari', 'vault.plain.json');
 
 const fileStore = {
-  label: '평문 파일 (0600) — 키링이 없는 환경의 최후 수단',
+  label: 'plaintext file (0600) — last resort where no keyring exists',
   set(name, value) {
     let vault = {};
     try { vault = JSON.parse(fs.readFileSync(FALLBACK(), 'utf8')); } catch { /* fresh */ }
@@ -51,8 +51,8 @@ async function pick() {
   }
   if (backend === fileStore && !warnedFallback) {
     warnedFallback = true;
-    log.warn('OS 키링을 찾지 못해 시크릿을 평문 파일(0600)에 보관합니다. ' +
-      'Linux라면 gnome-keyring 과 libsecret(secret-tool) 설치를 권합니다.');
+    log.warn('No OS keyring found — secrets go into a plaintext file (0600). ' +
+      'On Linux, installing gnome-keyring and libsecret (secret-tool) is recommended.');
   }
   return backend;
 }

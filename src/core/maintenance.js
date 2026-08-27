@@ -39,7 +39,7 @@ const referencedOids = (manifests) => {
 export async function checkStore(store, meta, dek) {
   const { chain, broken } = await walkChain(store, meta, dek, 1);
   if (broken || !chain.length) {
-    return { headReadable: false, reason: broken?.reason ?? 'HEAD 매니페스트 없음' };
+    return { headReadable: false, reason: broken?.reason ?? 'HEAD manifest missing' };
   }
   const objects = await listObjects(store);
   const needed = referencedOids(chain);
@@ -58,9 +58,9 @@ export async function checkStore(store, meta, dek) {
 // What would `prune --keep N` delete? Never the kept chain, never meta,
 // never the machines folder.
 export async function computePruneSet(store, meta, dek, keep) {
-  if (!Number.isInteger(keep) || keep < 1) throw new Error('--keep 은 1 이상의 정수여야 합니다.');
+  if (!Number.isInteger(keep) || keep < 1) throw new Error('--keep must be an integer of 1 or more.');
   const { chain, broken } = await walkChain(store, meta, dek, keep);
-  if (broken) throw new Error(`체인이 손상되어 prune 할 수 없습니다: ${broken.reason}`);
+  if (broken) throw new Error(`The chain is damaged, refusing to prune: ${broken.reason}`);
   const keptIds = new Set(chain.map((c) => c.fileId));
   const keptOids = referencedOids(chain);
 

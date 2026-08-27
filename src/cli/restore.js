@@ -22,12 +22,12 @@ function parseArgs(args) {
 export default async function restore(args) {
   const { generation, pathPrefix, dryRun, force } = parseArgs(args);
   if (!Number.isInteger(generation)) {
-    log.error('사용법: bottari restore --generation N [--path 접두어] [--dry-run] [--force]');
+    log.error('usage: bottari restore --generation N [--path prefix] [--dry-run] [--force]');
     return 1;
   }
   const ctx = await openCloud();
   if (!ctx.meta) {
-    log.error('클라우드에 보따리가 없습니다.');
+    log.error('No bundle in the cloud.');
     return 1;
   }
   const dek = await obtainDek(ctx);
@@ -37,20 +37,20 @@ export default async function restore(args) {
   const localHashes = Object.fromEntries([...files].map(([p, f]) => [p, f.hash]));
   const plan = planRestore(manifest, localHashes, { pathPrefix });
 
-  log.out(`세대 ${generation} (${manifest.createdAt?.slice(0, 19)}) 기준:`);
-  log.out(`  바꿀 파일 ${plan.write.length}개 · 이미 동일 ${plan.unchanged}개` +
-    (plan.foreign.length ? ` · 이 머신에 자리 없음 ${plan.foreign.length}개` : ''));
+  log.out(`generation ${generation} (${manifest.createdAt?.slice(0, 19)}):`);
+  log.out(`  to write ${plan.write.length} · already identical ${plan.unchanged}` +
+    (plan.foreign.length ? ` · no place on this machine ${plan.foreign.length}` : ''));
   if (dryRun || plan.write.length === 0) {
-    for (const p of plan.write) log.out(`  복원 예정  ${p}`);
-    if (plan.write.length === 0) log.out('  복원할 것이 없습니다.');
+    for (const p of plan.write) log.out(`  would restore  ${p}`);
+    if (plan.write.length === 0) log.out('  nothing to restore.');
     return 0;
   }
   if (!force) {
-    for (const p of plan.write.slice(0, 20)) log.out(`  덮어씀     ${p}`);
-    if (plan.write.length > 20) log.out(`  … 외 ${plan.write.length - 20}개`);
-    const go = await askChoice('위 파일들을 그 세대의 내용으로 되돌릴까요? (지워지는 파일은 없습니다)', [
-      { key: 'y', label: '되돌린다' },
-      { key: 'n', label: '그만둔다' },
+    for (const p of plan.write.slice(0, 20)) log.out(`  overwrites     ${p}`);
+    if (plan.write.length > 20) log.out(`  … and ${plan.write.length - 20} more`);
+    const go = await askChoice('Bring these files back to that generation? (nothing gets deleted)', [
+      { key: 'y', label: 'restore' },
+      { key: 'n', label: 'quit' },
     ]);
     if (go === 'n') return 0;
   }
@@ -62,6 +62,6 @@ export default async function restore(args) {
     const buf = await fetchEntry(ctx.store, dek, manifest.entries[p], index, p);
     if (await materialize(p, manifest.entries[p], buf, { ctx: mctx })) written++;
   }
-  log.out(`복원 완료: ${written}개. 다음 \`bottari sync\` 때 이 상태가 새 세대로 올라갑니다.`);
+  log.out(`restored ${written} file(s). The next \`bottari sync\` publishes this state as a new generation.`);
   return 0;
 }

@@ -10,59 +10,59 @@ import { log } from '../util/log.js';
 
 export default async function doctor() {
   let bad = 0;
-  const ok = (label, value = '') => log.out(`  ok    ${label}${value ? '  ' + value : ''}`);
-  const fail = (label, why) => { bad++; log.out(`  문제  ${label}  ${why}`); };
+  const ok = (label, value = '') => log.out(`  ok      ${label}${value ? '  ' + value : ''}`);
+  const fail = (label, why) => { bad++; log.out(`  PROBLEM ${label}  ${why}`); };
 
   const [major] = process.versions.node.split('.').map(Number);
   if (major >= 20) ok('Node.js', process.versions.node);
-  else fail('Node.js', `${process.versions.node} — 20 이상이 필요합니다`);
+  else fail('Node.js', `${process.versions.node} — 20 or newer is required`);
 
-  ok('시크릿 보관', await backendLabel());
-  if (await hasRefreshToken()) ok('로그인', '저장된 로그인 있음');
-  else fail('로그인', '없음 — `bottari login`');
+  ok('secret store', await backendLabel());
+  if (await hasRefreshToken()) ok('sign-in', 'stored sign-in present');
+  else fail('sign-in', 'none — run `bottari login`');
 
   const pending = loadPendingState();
   if (pending.conflicts.length) {
-    log.out(`  참고  미해소 충돌 ${pending.conflicts.length}건 — \`bottari resolve\``);
+    log.out(`  note    ${pending.conflicts.length} unresolved conflict(s) — \`bottari resolve\``);
   }
 
   let ctx;
   try {
     ctx = await openCloud({ interactive: false });
   } catch (e) {
-    fail('클라우드 접속', e.message);
+    fail('cloud access', e.message);
     return 1;
   }
   if (!ctx.meta) {
-    log.out('  참고  클라우드에 보따리가 아직 없습니다 (`bottari init` 전 상태)');
+    log.out('  note    no bundle in the cloud yet (pre-`bottari init` state)');
     return bad ? 1 : 0;
   }
-  ok('메타', `스키마 ${ctx.meta.schema}, HEAD 세대 ${ctx.meta.head}`);
+  ok('meta', `schema ${ctx.meta.schema}, HEAD generation ${ctx.meta.head}`);
 
   const lock = await ctx.files.findChild('lock.json', ctx.store.rootId);
   if (lock) {
     try {
       const l = JSON.parse((await ctx.files.download(lock.id)).toString());
-      if (l.expiresAt > Date.now()) log.out('  참고  다른 동기화의 잠금이 살아 있습니다');
-      else log.out('  참고  만료된 잠금이 남아 있습니다 (`bottari sync --force-unlock`)');
-    } catch { log.out('  참고  읽을 수 없는 잠금 파일이 있습니다'); }
+      if (l.expiresAt > Date.now()) log.out('  note    another sync\'s lock is live');
+      else log.out('  note    an expired lock remains (`bottari sync --force-unlock`)');
+    } catch { log.out('  note    an unreadable lock file exists'); }
   }
 
   const dek = await obtainDek(ctx);
   const report = await checkStore(ctx.store, ctx.meta, dek);
   if (!report.headReadable) {
-    fail('HEAD 매니페스트', report.reason);
+    fail('HEAD manifest', report.reason);
     return 1;
   }
-  ok('HEAD 매니페스트', `엔트리 ${report.entryCount}개 복호·검증됨`);
+  ok('HEAD manifest', `${report.entryCount} entries decrypted and verified`);
   if (report.missingObjects.length) {
-    fail('객체 정합성', `${report.missingObjects.length}개가 없습니다 (Drive 웹에서 지워졌을 수 있음). ` +
-      '로컬에 원본이 있으면 다음 sync 가 자연 복구합니다.');
+    fail('object integrity', `${report.missingObjects.length} object(s) missing (deleted in the Drive web UI?). ` +
+      'If this machine still has the originals, the next sync heals it.');
   } else {
-    ok('객체 정합성', `HEAD가 참조하는 ${report.neededObjects}개 전부 존재`);
+    ok('object integrity', `all ${report.neededObjects} objects HEAD needs exist`);
   }
   if (report.unreferencedByHead > 0) {
-    log.out(`  참고  HEAD 기준 미참조 객체 ${report.unreferencedByHead}개 (이전 세대 소속 — \`bottari prune\` 대상)`);
+    log.out(`  note    ${report.unreferencedByHead} object(s) not referenced by HEAD (older generations — \`bottari prune\`)`);
   }
   return bad ? 1 : 0;
 }

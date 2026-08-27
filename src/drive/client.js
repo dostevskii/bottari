@@ -41,7 +41,7 @@ export function makeClient({ getAccessToken, fetchImpl = fetch, maxTries = 4 }) 
         continue;
       }
       const text = await res.text().catch(() => '');
-      throw new Error(`Drive API ${method} ${path} 실패 (${res.status}): ${text.slice(0, 300)}`);
+      throw new Error(`Drive API ${method} ${path} failed (${res.status}): ${text.slice(0, 300)}`);
     }
   }
 

@@ -43,7 +43,7 @@ export async function fetchEntry(store, dek, entry, objectsIndex, logical) {
   }
   const buf = Buffer.concat(parts);
   if (sha256Hex(buf) !== entry.hash) {
-    throw new Error(`내려받은 ${logical} 의 해시가 매니페스트와 다릅니다 (저장소 손상 의심)`);
+    throw new Error(`Downloaded ${logical} does not match its manifest hash (store corruption?)`);
   }
   return buf;
 }
@@ -52,23 +52,23 @@ export async function fetchEntry(store, dek, entry, objectsIndex, logical) {
 // addressed by fileId from sealed content — file names prove nothing.
 export async function manifestAtGeneration(store, meta, dek, target) {
   if (!Number.isInteger(target) || target < 1 || target > (meta.head ?? 0)) {
-    throw new Error(`세대 번호가 범위를 벗어났습니다: ${target} (현재 HEAD는 ${meta.head})`);
+    throw new Error(`Generation out of range: ${target} (HEAD is ${meta.head})`);
   }
   let fileId = meta.headManifestId;
   for (;;) {
     if (!fileId) {
-      throw new Error(`세대 ${target} 에 닿을 수 없습니다 — 체인이 끊겼습니다 (prune 되었을 수 있음).`);
+      throw new Error(`Generation ${target} is unreachable — the chain is cut (pruned, perhaps).`);
     }
     let manifest;
     try {
       manifest = parseManifest(unseal(await getManifestById(store, fileId), dek).plain);
     } catch {
       // the hop itself is gone or unreadable — same answer as a cut chain
-      throw new Error(`세대 ${target} 에 닿을 수 없습니다 — 체인이 끊겼습니다 (prune 되었을 수 있음).`);
+      throw new Error(`Generation ${target} is unreachable — the chain is cut (pruned, perhaps).`);
     }
     if (manifest.generation === target) return manifest;
     if (manifest.generation < target) {
-      throw new Error(`세대 ${target} 이 체인에 없습니다 (${manifest.generation} 아래로 내려감).`);
+      throw new Error(`Generation ${target} is not on the chain (walked down past ${manifest.generation}).`);
     }
     fileId = manifest.parentManifestId;
   }

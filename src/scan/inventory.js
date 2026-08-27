@@ -40,9 +40,9 @@ export function diffInventories(mine, theirs) {
     const a = mine.tools[name];
     const b = theirs.tools[name];
     if (a === b) continue;
-    if (a && !b) lines.push(`${name}: 이 컴퓨터 ${a} ↔ 상대 컴퓨터에 없음`);
-    else if (!a && b) lines.push(`${name}: 이 컴퓨터에 없음 ↔ 상대 ${b}`);
-    else lines.push(`${name}: 이 컴퓨터 ${a} ↔ 상대 ${b}`);
+    if (a && !b) lines.push(`${name}: here ${a} <-> not installed there`);
+    else if (!a && b) lines.push(`${name}: not installed here <-> there ${b}`);
+    else lines.push(`${name}: here ${a} <-> there ${b}`);
   }
   return lines;
 }

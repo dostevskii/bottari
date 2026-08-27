@@ -61,7 +61,7 @@ export async function scanLocal(sources, scanCache = {}) {
             packed: shared,
           });
         } catch (e) {
-          log.warn(`${logical} 변환 실패 — 이 파일은 이번 동기화에서 건너뜁니다 (${e.message})`);
+          log.warn(`${logical} failed to transform — skipped for this sync (${e.message})`);
           skipped.push({ rel: logical, reason: 'transform', source: src.logical });
         }
         continue;

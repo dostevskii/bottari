@@ -92,7 +92,7 @@ export async function unpack(sharedBuf, { overlay, ctx, currentRaw }) {
   for (const [name, def] of Object.entries(shared.mcpServers ?? {})) {
     const osList = def._bottari?.os;
     if (osList && !osList.includes(platform)) {
-      log.info(`MCP 서버 '${name}' 은 ${osList.join('/')} 전용이라 이 컴퓨터에는 넣지 않습니다.`);
+      log.info(`MCP server '${name}' is ${osList.join('/')}-only and stays off this machine.`);
       continue;
     }
     const { _bottari, ...clean } = def;
@@ -102,8 +102,8 @@ export async function unpack(sharedBuf, { overlay, ctx, currentRaw }) {
     servers[name] = def; // this machine's own servers always win
   }
   if (missing.length) {
-    log.warn(`시크릿 ${missing.length}개가 이 컴퓨터에 없습니다: ${[...new Set(missing)].join(', ')}` +
-      ` — \`bottari secrets set <이름>\` 으로 넣어주세요.`);
+    log.warn(`${missing.length} secret(s) are not on this machine: ${[...new Set(missing)].join(', ')}` +
+      ' — fill them with `bottari secrets set <name>`.');
   }
   return Buffer.from(JSON.stringify({ ...live, mcpServers: servers }, null, 2) + '\n', 'utf8');
 }

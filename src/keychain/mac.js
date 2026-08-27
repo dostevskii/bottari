@@ -35,4 +35,4 @@ export function remove(name) {
   }
 }
 
-export const label = 'macOS 키체인';
+export const label = 'macOS Keychain';

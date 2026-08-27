@@ -50,8 +50,8 @@ export async function acquireLock(store, machineId, { force = false } = {}) {
     const live = lock && lock.expiresAt > Date.now() && lock.machineId !== machineId;
     if (live && !force) {
       throw new Error(
-        '다른 컴퓨터가 동기화 중입니다 (10분 넘게 이 상태면 그쪽이 중단된 것이니 ' +
-        '`bottari sync --force-unlock` 으로 잠금을 해제할 수 있습니다).',
+        'Another machine is syncing right now. If it has looked like this for over ' +
+        '10 minutes that sync died — `bottari sync --force-unlock` clears the lock.',
       );
     }
   }
@@ -128,7 +128,7 @@ export async function putObject(store, oid, sealed, index) {
 
 export async function getObject(store, oid, index) {
   const fileId = index?.get(oid) ?? (await store.files.findChild(oid, store.objsId))?.id;
-  if (!fileId) throw new Error(`객체 ${oid.slice(0, 12)}… 가 Drive에 없습니다 (bottari doctor 로 점검하세요).`);
+  if (!fileId) throw new Error(`Object ${oid.slice(0, 12)}… is not on Drive (check with \`bottari doctor\`).`);
   return store.files.download(fileId);
 }
 

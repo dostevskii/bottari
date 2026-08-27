@@ -50,7 +50,7 @@ export async function runSync({
   if (!meta) {
     // A null meta must never reach the commit path: {...null, head} would
     // silently drop the wrapped key record from the store.
-    throw new Error('저장소 메타가 없습니다. `bottari init` 을 먼저 실행하세요.');
+    throw new Error('The store has no meta yet. Run `bottari init` first.');
   }
   const objKey = subkey(dek, 'objid');
   const state = loadState();
@@ -65,13 +65,13 @@ export async function runSync({
 
     const { files: local, skipped } = await scanLocal(sources, state.scanCache);
     for (const s of skipped) {
-      if (s.reason === 'link') log.warn(`링크는 따라가지 않습니다: ${s.source}/${s.rel}`);
+      if (s.reason === 'link') log.warn(`links are never followed: ${s.source}/${s.rel}`);
     }
     const localHashes = Object.fromEntries([...local].map(([p, f]) => [p, f.hash]));
 
     const collisions = findCaseCollisions([...Object.keys(remote), ...Object.keys(localHashes)]);
     for (const c of collisions) {
-      log.warn(`대소문자만 다른 경로가 공존합니다 (케이스 무시 파일시스템에서 겹침): ${c.paths.join(' ↔ ')}`);
+      log.warn(`paths differing only in case coexist (they collide on case-insensitive filesystems): ${c.paths.join(' <-> ')}`);
     }
 
     const verdicts = decideAll(state.base, localHashes, remote);
@@ -99,7 +99,7 @@ export async function runSync({
 
     const writeLocal = async (logical, entry, buf, opts = {}) => {
       const ok = await materialize(logical, entry, buf, { ctx, ...opts });
-      if (!ok) log.warn(`이 머신이 모르는 경로라 내려받지 않습니다: ${logical}`);
+      if (!ok) log.warn(`no place for this path on this machine, not downloading: ${logical}`);
       return ok;
     };
 
@@ -156,7 +156,7 @@ export async function runSync({
         // an inconsistent state (uploaded chunks stay reusable)
         const st = fs.statSync(f.abs);
         if (st.size !== f.size || st.mtimeMs !== f.mtimeMs) {
-          log.warn(`${logical} 이 읽는 중에 변했습니다 — 다음 동기화로 미룹니다.`);
+          log.warn(`${logical} changed while being read — deferred to the next sync.`);
           return;
         }
         newEntries[logical] = {
@@ -268,7 +268,7 @@ export async function runSync({
         gen: nextGen, machineId, sealedManifest: sealed, expectedHead: head, meta, metaFileId,
       });
       if (!res.ok) {
-        log.info('다른 컴퓨터가 먼저 커밋했습니다. 새 기준으로 다시 병합합니다.');
+        log.info('Another machine committed first. Re-merging on top of the new HEAD.');
         meta = res.meta;
         metaFileId = res.metaFileId;
         continue; // objects already uploaded are all reused
@@ -292,8 +292,8 @@ export async function runSync({
     mirror(applied);
 
     if (tierDFindings > 0) {
-      log.warn(`세션 기록에서 자격증명처럼 보이는 내용 ${tierDFindings}건이 올라갔습니다. ` +
-        '암호화되어 저장되지만, 대화에 붙여넣었던 키가 있는지 한번 돌아보세요.');
+      log.warn(`${tierDFindings} credential-looking string(s) went up inside session transcripts. ` +
+        'They are stored encrypted, but consider whether a pasted key should be rotated.');
     }
 
     return {
@@ -301,7 +301,7 @@ export async function runSync({
       tierDFindings, meta, metaFileId,
     };
   }
-  throw new Error(`커밋 경합이 ${MAX_COMMIT_RETRIES}회 반복되었습니다. 잠시 후 다시 시도하세요.`);
+  throw new Error(`Lost the commit race ${MAX_COMMIT_RETRIES} times in a row. Try again shortly.`);
 }
 
 // ~/.claude/skills is a physical duplicate of the canonical skills; keep
@@ -315,7 +315,7 @@ function mirror(applied) {
     if (!source || !fs.existsSync(source)) continue;
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.cpSync(source, target, { recursive: true, force: true });
-    log.info(`복제본 갱신: ${target}`);
+    log.info(`mirror refreshed: ${target}`);
   }
 }
 

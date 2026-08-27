@@ -23,7 +23,7 @@ export function set(name, value) {
     ['store', `--label=bottari ${name}`, ...ATTRS(name)],
     { input: value, encoding: 'utf8' });
   if (r.status !== 0) {
-    throw new Error(`secret-tool store 실패: ${r.stderr?.trim() || 'unknown'}`);
+    throw new Error(`secret-tool store failed: ${r.stderr?.trim() || 'unknown'}`);
   }
 }
 

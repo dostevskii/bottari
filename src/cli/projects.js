@@ -18,12 +18,12 @@ export default async function projects(args) {
   if (sub === 'list' || !sub) {
     const entries = Object.entries(config.projects);
     if (!entries.length) {
-      log.out('등록된 프로젝트 폴더가 없습니다. `bottari projects add <경로>` 로 추가하세요.');
+      log.out('No project folders registered. Add one with `bottari projects add <path>`.');
       return 0;
     }
     for (const [slug, root] of entries) {
       const exists = fs.existsSync(root);
-      log.out(`  ${slug.padEnd(20)} ${root}${exists ? '' : '   (이 컴퓨터에 폴더 없음)'}`);
+      log.out(`  ${slug.padEnd(20)} ${root}${exists ? '' : '   (folder missing on this machine)'}`);
     }
     return 0;
   }
@@ -33,43 +33,43 @@ export default async function projects(args) {
     const nameIdx = rest.indexOf('--name');
     const slug = slugify(nameIdx >= 0 && rest[nameIdx + 1] ? rest[nameIdx + 1] : path.basename(root));
     if (!slug) {
-      log.error('폴더 이름에서 쓸 만한 이름을 만들지 못했습니다. --name 으로 지정하세요.');
+      log.error('Could not derive a usable name from the folder. Pass one with --name.');
       return 1;
     }
     let st;
     try {
       st = fs.statSync(root);
     } catch {
-      log.error(`폴더가 없습니다: ${root}`);
+      log.error(`No such folder: ${root}`);
       return 1;
     }
     if (!st.isDirectory()) {
-      log.error(`폴더가 아닙니다: ${root}`);
+      log.error(`Not a folder: ${root}`);
       return 1;
     }
     if (config.projects[slug] && config.projects[slug] !== root) {
-      log.error(`'${slug}' 은 이미 다른 경로로 등록되어 있습니다: ${config.projects[slug]}`);
+      log.error(`'${slug}' is already registered for a different path: ${config.projects[slug]}`);
       return 1;
     }
     config.projects[slug] = root;
     saveConfig(config);
-    log.out(`등록했습니다: ${slug} → ${root}`);
-    log.out('node_modules, .git, dist 같은 재생성 폴더는 자동으로 제외됩니다.');
-    log.out('다른 컴퓨터에서는 그쪽 경로로 `bottari projects add <경로> --name ' + slug + '` 하면 이어집니다.');
+    log.out(`registered: ${slug} -> ${root}`);
+    log.out('Regenerable folders (node_modules, .git, dist, ...) are excluded automatically.');
+    log.out('On another machine, run `bottari projects add <its-path> --name ' + slug + '` to link up.');
     return 0;
   }
 
   if (sub === 'remove' && rest[0]) {
     if (!(rest[0] in config.projects)) {
-      log.error(`등록되어 있지 않습니다: ${rest[0]}`);
+      log.error(`Not registered: ${rest[0]}`);
       return 1;
     }
     delete config.projects[rest[0]];
     saveConfig(config);
-    log.out(`등록을 해제했습니다: ${rest[0]} (폴더와 클라우드의 데이터는 그대로 둡니다)`);
+    log.out(`unregistered: ${rest[0]} (the folder and its cloud data stay as they are)`);
     return 0;
   }
 
-  log.error('사용법: bottari projects [list | add <경로> [--name 이름] | remove <이름>]');
+  log.error('usage: bottari projects [list | add <path> [--name name] | remove <name>]');
   return 1;
 }

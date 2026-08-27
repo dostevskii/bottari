@@ -56,7 +56,7 @@ export function startListener(state) {
       }
       if (q.has('error')) {
         res.writeHead(200, headers).end(PAGE_DENIED);
-        finish(() => settle.reject(new Error(`Google 계정이 로그인을 거부했습니다 (refused the sign-in: ${q.get('error')})`)));
+        finish(() => settle.reject(new Error(`Google refused the sign-in: ${q.get('error')}`)));
         return;
       }
       res.writeHead(200, headers).end(PAGE_OK);
@@ -74,7 +74,7 @@ export function startListener(state) {
 
     const timer = setTimeout(() => {
       server.close();
-      settle.reject(new Error('로그인 대기 시간(5분)이 지났습니다.'));
+      settle.reject(new Error('Timed out waiting for the sign-in (5 minutes).'));
     }, SIGN_IN_TIMEOUT_MS);
     timer.unref?.();
 
@@ -113,7 +113,7 @@ async function tokenRequest(params) {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(`토큰 요청 실패 (${res.status}): ${body.error ?? ''} ${body.error_description ?? ''}`.trim());
+    throw new Error(`Token request failed (${res.status}): ${body.error ?? ''} ${body.error_description ?? ''}`.trim());
   }
   return body;
 }

@@ -81,7 +81,7 @@ export function redactText(text) {
   let out = text;
   for (const { re } of PATTERNS) {
     re.lastIndex = 0;
-    out = out.replace(re, '[가려진 비밀값]');
+    out = out.replace(re, '[redacted]');
   }
   return out;
 }
@@ -90,14 +90,14 @@ export function redactText(text) {
 export function assertClean(logical, buf, allowed = new Set()) {
   const base = logical.split('/').at(-1);
   if (isForbiddenName(base)) {
-    throw new Error(`업로드 중단: ${logical} 은 자격증명 파일입니다. 동기화 대상에서 제외하세요.`);
+    throw new Error(`Upload refused: ${logical} is a credential file. Keep it out of the sync set.`);
   }
   const hits = scanBuffer(buf).filter((f) => !allowed.has(f.fingerprint));
   if (hits.length) {
-    const lines = hits.map((f) => `  ${logical}  [${f.kind}]  ${f.match}  (지문 ${f.fingerprint})`);
+    const lines = hits.map((f) => `  ${logical}  [${f.kind}]  ${f.match}  (fingerprint ${f.fingerprint})`);
     throw new Error(
-      '업로드 중단: 자격증명으로 보이는 내용이 남아 있습니다.\n' + lines.join('\n') +
-      '\n실제 비밀이 아니라면 `bottari sync --allow-finding <지문>` 으로 해당 항목만 허용할 수 있습니다.',
+      'Upload refused: credential-looking content remains.\n' + lines.join('\n') +
+      '\nIf this is not a real secret, allow just this finding with `bottari sync --allow-finding <fingerprint>`.',
     );
   }
 }

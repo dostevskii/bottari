@@ -41,8 +41,8 @@ test('assertClean is fail-closed and names the fingerprint', () => {
   const dirty = B('key = "sk-abcdefghijklmnopqrstuvwx"');
   let err;
   try { assertClean('claude/settings.json', dirty); } catch (e) { err = e; }
-  assert.match(err.message, /업로드 중단/);
-  assert.match(err.message, /지문 [0-9a-f]{16}/);
+  assert.match(err.message, /Upload refused/);
+  assert.match(err.message, /fingerprint [0-9a-f]{16}/);
 });
 
 test('an allowed fingerprint passes, everything else still fails', () => {
@@ -53,7 +53,7 @@ test('an allowed fingerprint passes, everything else still fails', () => {
   assertClean('docs/example.md', dirty, loadAllowed()); // must not throw
   assert.throws(
     () => assertClean('x', B('other: ghp_ABCDEFGHIJKLMNOPQRSTUVWX'), loadAllowed()),
-    /업로드 중단/,
+    /Upload refused/,
   );
 });
 
@@ -61,13 +61,13 @@ test('redaction strips every credential shape, keeps the rest', () => {
   const text = 'key = "sk-abcdefghijklmnopqrstuvwx" and token ghp_ABCDEFGHIJKLMNOPQRSTUVWX kept-text';
   const out = redactText(text);
   assert.ok(!out.includes('sk-abcdefghijklmnop') && !out.includes('ghp_'));
-  assert.ok(out.includes('kept-text') && out.includes('[가려진 비밀값]'));
+  assert.ok(out.includes('kept-text') && out.includes('[redacted]'));
 });
 
 test('credential files are refused by name alone', () => {
   for (const name of ['.credentials.json', 'auth.json', 'id_rsa', 'server.pem', 'client_secret_x.json']) {
     assert.ok(isForbiddenName(name), name);
-    assert.throws(() => assertClean(`dir/${name}`, B('harmless')), /자격증명 파일/);
+    assert.throws(() => assertClean(`dir/${name}`, B('harmless')), /credential file/);
   }
   assert.ok(!isForbiddenName('settings.json'));
 });

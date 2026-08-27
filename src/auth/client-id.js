@@ -34,10 +34,10 @@ export function clientCredentials() {
   const secret = process.env.BOTTARI_CLIENT_SECRET || decode(EMBEDDED_SECRET);
   if (!id || !secret) {
     throw new Error(
-      'Google OAuth 클라이언트가 설정되지 않았습니다.\n' +
-      '이 빌드에는 클라이언트가 내장되지 않았습니다. 환경변수 BOTTARI_CLIENT_ID / ' +
-      'BOTTARI_CLIENT_SECRET 를 설정하거나, console.cloud.google.com 에서 ' +
-      '데스크톱 앱 OAuth 클라이언트를 만들어 넣어주세요.',
+      'No Google OAuth client is configured.\n' +
+      'This build ships without an embedded client. Set BOTTARI_CLIENT_ID / ' +
+      'BOTTARI_CLIENT_SECRET in the environment, or create a Desktop-app ' +
+      'OAuth client at console.cloud.google.com.',
     );
   }
   return { clientId: id, clientSecret: secret };

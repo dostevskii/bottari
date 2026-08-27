@@ -24,7 +24,7 @@ export function makeFiles(client) {
     const existing = await findChild(name, parentId);
     if (existing) {
       if (existing.mimeType !== FOLDER_MIME) {
-        throw new Error(`Drive에 '${name}' 이(가) 폴더가 아닌 파일로 존재합니다. 옮기거나 지운 뒤 다시 시도하세요.`);
+        throw new Error(`'${name}' exists on Drive as a file, not a folder. Move or delete it and retry.`);
       }
       return existing.id;
     }
@@ -97,7 +97,7 @@ export function makeFiles(client) {
       body: JSON.stringify(meta),
     });
     const session = init.headers.get('location');
-    if (!session) throw new Error('resumable 세션 주소를 받지 못했습니다');
+    if (!session) throw new Error('No resumable session address received');
 
     const putFrom = (offset) => client.rawFetch(session, {
       method: 'PUT',
@@ -124,7 +124,7 @@ export function makeFiles(client) {
       }
     }
     if (!res.ok) {
-      throw new Error(`resumable 업로드 실패 (${res.status})`);
+      throw new Error(`Resumable upload failed (${res.status})`);
     }
     return res.json();
   }

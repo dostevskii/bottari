@@ -13,31 +13,31 @@ export default async function secrets(args) {
   if (sub === 'list' || !sub) {
     const names = listSecretNames();
     if (!names.length) {
-      log.out('보관 중인 시크릿이 없습니다.');
+      log.out('No secrets stored.');
       return 0;
     }
-    log.out(`보관 위치: ${await backendLabel()}`);
+    log.out(`stored via: ${await backendLabel()}`);
     for (const n of names) {
       const present = (await getSecret(`secret:${n}`)) != null;
-      log.out(`  ${n}${present ? '' : '   (이름만 있고 값이 없음 — set 으로 채우세요)'}`);
+      log.out(`  ${n}${present ? '' : '   (name known but no value here — fill it with `set`)'}`);
     }
     return 0;
   }
   if (sub === 'set' && name) {
-    const value = await askHidden(`'${name}' 의 값 (입력해도 화면에 보이지 않습니다): `);
+    const value = await askHidden(`value for '${name}': `);
     if (!value) {
-      log.error('빈 값은 저장하지 않습니다.');
+      log.error('An empty value is not stored.');
       return 1;
     }
     await setSecret(`secret:${name}`, value);
-    log.out(`저장했습니다: ${name}`);
+    log.out(`stored: ${name}`);
     return 0;
   }
   if (sub === 'remove' && name) {
     await deleteSecret(`secret:${name}`);
-    log.out(`지웠습니다: ${name}`);
+    log.out(`removed: ${name}`);
     return 0;
   }
-  log.error('사용법: bottari secrets [list | set <이름> | remove <이름>]');
+  log.error('usage: bottari secrets [list | set <name> | remove <name>]');
   return 1;
 }
