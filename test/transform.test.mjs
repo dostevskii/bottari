@@ -17,7 +17,8 @@ const claudeJson = await import('../src/transform/claude-json.js');
 const codexConfig = await import('../src/transform/codex-config.js');
 const { shrink, expand, hasAbsolutePath } = await import('../src/paths/placeholders.js');
 
-const WIN = { home: 'C:\\Users\\example', projects: {} };
+// platform pinned so the suite behaves identically on every host OS
+const WIN = { home: 'C:\\Users\\example', projects: {}, platform: 'win32' };
 const LNX = { home: '/home/example', projects: {}, platform: 'linux' };
 const B = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o, null, 2), 'utf8');
 
