@@ -11,7 +11,7 @@ import http from 'node:http';
 import { execFile } from 'node:child_process';
 // The confirmation pages; see the rules at the head of pages.js — nothing
 // external is loaded, on the very page that just handled a credential.
-import { PAGE_OK, PAGE_DENIED } from './pages.js';
+import { pageOk, pageDenied } from './pages.js';
 
 export const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -51,11 +51,11 @@ export function startListener(state) {
         return;
       }
       if (q.has('error')) {
-        res.writeHead(200, headers).end(PAGE_DENIED);
+        res.writeHead(200, headers).end(pageDenied());
         finish(() => settle.reject(new Error(`Google refused the sign-in: ${q.get('error')}`)));
         return;
       }
-      res.writeHead(200, headers).end(PAGE_OK);
+      res.writeHead(200, headers).end(pageOk());
       const got = q.get('code');
       finish(() => settle.resolve(got));
     });

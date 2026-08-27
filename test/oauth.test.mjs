@@ -90,7 +90,9 @@ test('two listeners get their own ports', async () => {
 
 test('the auth module writes nothing to disk and ships no client id', () => {
   const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'auth');
-  for (const f of fs.readdirSync(dir)) {
+  const sources = fs.readdirSync(dir).filter((f) => f.endsWith('.js'));
+  assert.ok(sources.length >= 4, 'the auth sources should all be scanned');
+  for (const f of sources) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     if (f !== 'token-store.js') {
       assert.ok(!/writeFileSync|createWriteStream|appendFile/.test(src), `${f} writes to disk`);
