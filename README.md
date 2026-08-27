@@ -27,9 +27,9 @@ encrypted data ever leaves your computer.
   there is no back door.
 - **Zero dependencies.** Node.js 20+ and nothing else.
 
-> **Status: under development.** Working and in daily use across three OSes,
-> but not yet a tagged release. The embedded Google client may still be in
-> testing — see [Google account](#google-account).
+> **Status: 0.1.0.** In daily use across Windows, Linux and macOS. Early —
+> expect rough edges, and read [SECURITY.md](SECURITY.md) before trusting it
+> with anything you cannot lose.
 
 ## Install
 
@@ -143,10 +143,15 @@ upload. Regenerable folders (`node_modules`, `dist`, …) and caches are exclude
 
 ## Google account
 
-The build embeds an OAuth client scoped to `drive.file` (it only ever sees
-files this app created). While that client is in **testing**, only accounts
-added as test users can sign in. If you fork and redistribute, register your
-own client and set `BOTTARI_CLIENT_ID` / `BOTTARI_CLIENT_SECRET`.
+The build embeds an OAuth client scoped to `drive.file` — it only ever sees
+files this app created, never the rest of your Drive. Any Google account can
+sign in. Because the app is not through Google's verification (which
+`drive.file` does not require), the browser shows an "unverified app" notice
+once; **Advanced → continue** proceeds.
+
+As with any installed app, the embedded client is not a secret (RFC 8252
+§8.5) — it identifies bottari, not you. If you fork and redistribute,
+register your own client and set `BOTTARI_CLIENT_ID` / `BOTTARI_CLIENT_SECRET`.
 
 ## Security
 
