@@ -5,72 +5,152 @@
   </picture>
 </p>
 
-<p align="center"><b>보따리</b> — pack up your CLI world, skills, settings and sessions,<br>
-and carry it between machines through your own Google Drive.</p>
+<p align="center"><b>보따리</b> — pack up your CLI world: skills, settings and sessions,<br>
+and carry it between your machines through your own Google Drive.</p>
+
+<p align="center"><a href="README.md"><b>English</b></a> · <a href="README.ko.md">한국어</a></p>
 
 ---
 
-흩어진 컴퓨터들(Windows / Linux / macOS) 사이에서 Claude Code CLI와 Codex CLI의
-스킬·설정·세션 기록·프로젝트 폴더를 하나의 보따리로 싸서, **본인의 Google
-Drive**를 허브로 동기화합니다. 클라우드에는 암호화된 데이터만 올라갑니다.
+Your Claude Code and Codex CLI setup lives on more than one machine —
+Windows, an old Linux laptop, a Mac. **bottari** keeps them in step: it packs
+your skills, settings, session history and project folders into an encrypted
+bundle on **your own Google Drive**, and every machine syncs to it. Only
+encrypted data ever leaves your computer.
 
-> **상태: 개발 중.** 핵심 기능은 동작하지만 아직 정식 릴리스 전입니다.
-> **Status: under development.**
+- **Union merge, nothing deleted.** What exists on one side is always kept.
+  You are only asked when the same file changed on two machines.
+- **Version history.** Every sync is a generation; `bottari restore` brings
+  any earlier state back.
+- **End-to-end encrypted.** The cloud holds one plaintext file (encryption
+  parameters and a wrapped key). Forget your password and there is no way in —
+  there is no back door.
+- **Zero dependencies.** Node.js 20+ and nothing else.
 
-## 시작하기
+> **Status: under development.** Working and in daily use across three OSes,
+> but not yet a tagged release. The embedded Google client may still be in
+> testing — see [Google account](#google-account).
+
+## Install
+
+You need **Node.js 20 or newer** and a **Google account**. Check Node with
+`node -v`; if it is missing or older, install it first (per-OS below).
+
+### Windows
+
+```powershell
+# 1) Node — skip if `node -v` already prints v20+
+winget install OpenJS.NodeJS.LTS
+
+# 2) get bottari (pick one)
+git clone https://github.com/dostevskii/bottari.git
+#   or: download the ZIP from the green "Code" button and unzip it
+cd bottari
+npm link          # makes `bottari` available everywhere (optional)
+```
+
+### macOS
+
+```bash
+# 1) Node — skip if `node -v` already prints v20+
+#    with Homebrew:
+brew install node
+#    or download the LTS .pkg from https://nodejs.org
+
+# 2) get bottari
+git clone https://github.com/dostevskii/bottari.git
+cd bottari
+npm link          # optional; or run `node bin/bottari.mjs` directly
+```
+
+### Linux
+
+```bash
+# 1) Node 20+ — use your distro (examples)
+#    Arch:   sudo pacman -S nodejs npm
+#    Debian/Ubuntu: sudo apt install nodejs npm   (check: node -v ≥ v20)
+#    Fedora: sudo dnf install nodejs
+# 2) get bottari
+git clone https://github.com/dostevskii/bottari.git
+cd bottari
+# A desktop keyring (gnome-keyring + libsecret) is recommended so the
+# sign-in is stored securely; without one, bottari falls back to a 0600
+# file and warns.
+```
+
+## First run
+
+On the machine that has the most data (usually your main one), run:
 
 ```
-bottari init      # 처음 한 번: 로그인 → 암호 설정 → 올리기(또는 내려받아 병합)
-bottari sync      # 그다음부터는 이것 하나
-bottari status    # 무엇이 오르내릴지 미리 보기 (아무것도 바꾸지 않음)
+bottari init --remember-key
 ```
 
-- 처음 쓰는 컴퓨터에서 `init` 을 실행하면, 클라우드가 비어 있으면 이 컴퓨터의
-  데이터를 정리·암호화해 올리고, 이미 보따리가 있으면 내려받아 이 컴퓨터와
-  병합한 뒤 다시 올립니다.
-- 병합 규칙은 **합집합**입니다: 한쪽에만 있는 것은 무조건 보존되고, 같은
-  파일이 양쪽에서 다르게 바뀐 경우에만 어느 쪽을 남길지 묻습니다. **자동으로
-  지워지는 일은 없습니다.**
-- 모든 동기화는 세대(generation)로 기록되며 `bottari restore --generation N`
-  으로 언제든 그 시점의 파일로 되돌릴 수 있습니다.
+- It signs you in to Google in the browser and asks you to set a password.
+- **Remember this password.** It locks the whole bundle and cannot be recovered.
+- `--remember-key` stores the key in your OS credential store so you are not
+  asked again — and so the Claude Desktop extension can work without it.
 
-## 무엇이 동기화되나
+On every other machine, run the same command: bottari downloads the bundle,
+merges it with that machine (keeping everything unique to each), and uploads
+the result.
 
-| | 예 | 방식 |
+After that, day to day, it is just:
+
+```
+bottari sync
+```
+
+## Commands
+
+| | |
+|---|---|
+| `bottari sync` | synchronize (`--dry-run` to preview) |
+| `bottari status` | show what would go up or down, changing nothing |
+| `bottari restore --generation N` | bring files back to an earlier version |
+| `bottari generations` | list the versions in the cloud |
+| `bottari doctor` | diagnose the environment and store |
+| `bottari prune --keep N` | reclaim space from old generations |
+| `bottari projects add <path>` | add a project folder to the sync |
+| `bottari tools capture` / `show` | record and compare installed tools |
+| `bottari secrets set <name>` | fill a secret that was split out of a config |
+| `bottari login` / `logout` | sign in / out of Google Drive |
+
+## Claude Desktop (MCP)
+
+bottari ships an MCP server so Claude can drive it from the desktop app.
+
+1. Build the bundle: `node scripts/build-mcpb.mjs` → `dist/bottari.mcpb`
+2. Claude Desktop → **Settings → Extensions** → drag `bottari.mcpb` in.
+
+Once you have run `bottari sync --remember-key` once in a terminal (so the key
+is stored), just ask Claude: *"check my bottari status"* or *"sync bottari"*.
+Conflicts come back as a list; you choose, and the next sync applies it.
+
+## What syncs
+
+| | example | how |
 |---|---|---|
-| 자산 | 스킬, CLAUDE.md, AGENTS.md, hooks | 그대로 |
-| 설정 | settings.json, config.toml, MCP 서버 정의 | 경로는 자리표시자로, 시크릿은 OS 자격증명 저장소로 분리한 **기계 중립형**만 공유 |
-| 세션 기록 | 대화 .jsonl | 8MB 청크 증분, 이어쓰기는 자동 병합 |
-| 프로젝트 | `bottari projects add <경로>` 로 등록한 폴더 | 이름(슬러그)로 공유, 경로는 컴퓨터마다 |
-| 도구 목록 | node/git/claude/codex 버전 | `bottari tools capture/show` |
+| assets | skills, CLAUDE.md, AGENTS.md, hooks | as-is |
+| settings | settings.json, config.toml, MCP servers | machine-neutral form only; paths become placeholders, secrets move to your OS credential store |
+| session history | conversation `.jsonl` | 8 MB chunks, appends auto-merge |
+| projects | folders you register | shared by name, path per machine |
 
-자격증명 파일(.credentials.json, auth.json 등)은 **절대 올라가지 않으며**,
-업로드 직전 자격증명 패턴 검사가 fail-closed로 한 번 더 막습니다.
-node_modules 같은 재생성 폴더와 캐시·SQLite WAL도 제외됩니다.
+Credential files (`.credentials.json`, `auth.json`, …) never leave your
+machine, and a fail-closed scan blocks any credential-looking content before
+upload. Regenerable folders (`node_modules`, `dist`, …) and caches are excluded.
 
-## Claude 데스크톱 앱에서 쓰기 (MCP)
+## Google account
 
-```json
-{ "mcpServers": { "bottari": { "command": "node", "args": ["<설치 경로>/bin/bottari.mjs", "mcp"] } } }
-```
+The build embeds an OAuth client scoped to `drive.file` (it only ever sees
+files this app created). While that client is in **testing**, only accounts
+added as test users can sign in. If you fork and redistribute, register your
+own client and set `BOTTARI_CLIENT_ID` / `BOTTARI_CLIENT_SECRET`.
 
-한 번 `bottari sync --remember-key` 로 열쇠를 OS 자격증명 저장소에 보관해두면,
-Claude가 status/sync/충돌 해소/세대 복원을 대신 수행할 수 있습니다. 충돌은
-목록으로 돌아오고, 사람이 고른 답을 기록한 뒤 다음 sync 가 적용합니다.
+## Security
 
-## 명령 요약
-
-`init` `sync` `status` `generations` `restore` `doctor` `prune`
-`projects` `tools` `secrets` `login` `logout` `mcp` — `bottari --help` 참조.
-
-## 보안
-
-설계 전체는 [SECURITY.md](SECURITY.md), 동기화 모델의 정의는
-[docs/SYNC-MODEL.md](docs/SYNC-MODEL.md)에 있습니다. 요점:
-
-- 클라우드의 평문은 메타 파일 하나(암호화 파라미터와 래핑된 키)뿐입니다
-- 암호를 잊으면 데이터를 여는 방법이 없습니다 — 어디에도 백도어가 없습니다
-- Node.js 20+ 만 필요하고 외부 의존성은 0개입니다
+Design and threat model: [SECURITY.md](SECURITY.md). The sync model itself is
+defined in [docs/SYNC-MODEL.md](docs/SYNC-MODEL.md).
 
 ## License
 
