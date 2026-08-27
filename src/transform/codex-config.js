@@ -20,6 +20,11 @@ import { shrink, expand, hasAbsolutePath } from '../paths/placeholders.js';
 
 const HEADER = /^\s*\[.*\]\s*(#.*)?$/;
 
+// Naming an OS-specific binary means the line describes a runtime this
+// machine installed for itself. Sharing it plants a path that cannot
+// exist elsewhere — a Windows node_repl.exe landing on Linux.
+const isOsSpecific = (line) => /\.(exe|bat|cmd|dll|dylib|so)\b/i.test(line);
+
 function toSections(text) {
   const lines = text.split('\n');
   const root = [];
@@ -45,7 +50,11 @@ export async function pack(raw, ctx) {
   const overlayRoot = [];
   for (const line of root) {
     const s = shrink(line, ctx);
-    (hasAbsolutePath(s) ? overlayRoot : sharedRoot).push(hasAbsolutePath(s) ? line : s);
+    // same rule as sections: a machine-truth path or an OS-specific
+    // binary belongs to this machine alone (root keys carry them too —
+    // codex writes its notify hook up here).
+    if (hasAbsolutePath(s) || isOsSpecific(s)) overlayRoot.push(line);
+    else sharedRoot.push(s);
   }
 
   const sharedSections = [];
@@ -54,7 +63,8 @@ export async function pack(raw, ctx) {
     const isWindows = /^\s*\[windows(\.|\])/.test(sec.header);
     const shrunkHeader = shrink(sec.header, ctx);
     const shrunkLines = sec.lines.map((l) => shrink(l, ctx));
-    const dirty = isWindows || hasAbsolutePath(shrunkHeader) || shrunkLines.some(hasAbsolutePath);
+    const dirty = isWindows || shrunkLines.some(isOsSpecific) ||
+      hasAbsolutePath(shrunkHeader) || shrunkLines.some(hasAbsolutePath);
     if (dirty) {
       overlaySections.push([sec.header, ...sec.lines].join('\n'));
     } else {

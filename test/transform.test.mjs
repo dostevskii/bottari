@@ -175,6 +175,48 @@ test('codex config: same-machine roundtrip is stable (pack∘unpack∘pack fixed
   assert.deepEqual(p1.overlay, p2.overlay);
 });
 
+// The real incident: a Windows path came back as '//C:\...' and a second
+// placeholder survived unexpanded, which made codex refuse to start its
+// node_repl MCP server (os error 123, invalid path).
+test('a home path survives a Windows -> Linux -> Windows round trip intact', async () => {
+  const original = "cache_dir = 'C:\\Users\\example\\.codex\\cache'";
+  const { shared } = await codexConfig.pack(Buffer.from(original), WIN);
+  assert.ok(!shared.toString().includes('C:'), 'the drive path must be shrunk');
+
+  // land on Linux, pack again there, come home
+  const onLinux = (await codexConfig.unpack(shared, { overlay: null, ctx: LNX })).toString();
+  assert.equal(onLinux.trim(), "cache_dir = '/home/example/.codex/cache'");
+  const { shared: fromLinux } = await codexConfig.pack(Buffer.from(onLinux), LNX);
+  const backHome = (await codexConfig.unpack(fromLinux, { overlay: null, ctx: WIN })).toString();
+
+  assert.equal(backHome.trim(), original.trim(), 'the round trip must not alter the path');
+  assert.ok(!backHome.includes('//'), 'no stray separator may be introduced');
+});
+
+test('a PATH-style list expands every placeholder, not just the first', () => {
+  const list = "P = '${BOTTARI_HOME}\\.codex;${BOTTARI_HOME}\\AppData\\Local'";
+  const out = expand(list, { ...WIN, style: 'backslash' });
+  assert.ok(!out.includes('${BOTTARI_'), `a placeholder survived: ${out}`);
+  assert.equal(out, "P = 'C:\\Users\\example\\.codex;C:\\Users\\example\\AppData\\Local'");
+});
+
+test('codex config: a section naming an OS-specific binary stays machine-local', async () => {
+  const fixture = [
+    '[mcp_servers.node_repl]',
+    "command = 'C:\\Users\\example\\AppData\\Local\\App\\bin\\node_repl.exe'",
+    '',
+    '[mcp_servers.portable]',
+    'command = "node"',
+  ].join('\n');
+  const { shared, overlay } = await codexConfig.pack(Buffer.from(fixture), WIN);
+  assert.ok(!shared.toString().includes('node_repl'), 'the .exe server must not be shared');
+  assert.ok(shared.toString().includes('mcp_servers.portable'), 'the portable one still is');
+  assert.ok(overlay.sections.some((s) => s.includes('node_repl')));
+  // and it comes back on the machine that owns it
+  const restored = (await codexConfig.unpack(shared, { overlay, ctx: WIN })).toString();
+  assert.ok(restored.includes('node_repl.exe'));
+});
+
 test('codex config: on linux the shared half expands with slashes, no windows section', async () => {
   const { shared } = await codexConfig.pack(B(CODEX_FIXTURE), WIN);
   const text = (await codexConfig.unpack(shared, { overlay: null, ctx: LNX })).toString();

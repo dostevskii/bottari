@@ -23,15 +23,19 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // os.homedir() value. A Windows home additionally matches its Git Bash
 // (MSYS) spelling, /c/Users/example — permission entries recorded through
 // a bash shell really do look like that.
+//
+// A POSIX home must swallow its leading slash. Without it, a home path
+// shrank with the slash left outside the token, and expanding that on
+// Windows put a stray separator in front of the drive letter — enough to
+// make the path invalid, and it accumulated once per round trip. A drive
+// letter needs no such anchor: it cannot appear mid-path.
 function pathPatterns(p) {
   const segs = p.split(/[\\/]+/).filter(Boolean);
   const sep = '(?:[\\\\/]|\\\\\\\\)+';
-  const patterns = [segs.map(escapeRe).join(sep)];
+  const body = segs.map(escapeRe).join(sep);
   const drive = /^([A-Za-z]):$/.exec(segs[0]);
-  if (drive) {
-    patterns.push('/+' + drive[1] + '/' + segs.slice(1).map(escapeRe).join(sep));
-  }
-  return patterns;
+  if (!drive) return ['/+' + body];
+  return [body, '/+' + drive[1] + '/' + segs.slice(1).map(escapeRe).join(sep)];
 }
 
 export function shrink(text, { home = homeDir(), projects = {} } = {}) {
@@ -58,8 +62,12 @@ export function shrink(text, { home = homeDir(), projects = {} } = {}) {
 // Each tail hop needs a real segment after its separator (+, not *): a
 // lone backslash right before a quote is JSON escaping the quote, and
 // consuming it would corrupt the document.
+// The tail stops at anything that cannot be part of one path: quotes and
+// brackets, but also ; : and the start of another placeholder. A
+// PATH-style list ("<a>;${BOTTARI_HOME}\b") used to be swallowed whole,
+// leaving the second placeholder unexpanded in the restored file.
 const PLACEHOLDER_WITH_TAIL =
-  /\$\{BOTTARI_(HOME|PROJECT:[A-Za-z0-9._-]+)\}((?:(?:\\\\|[\\/])[^"'\\/\][}\r\n]+)*)/g;
+  /\$\{BOTTARI_(HOME|PROJECT:[A-Za-z0-9._-]+)\}((?:(?:\\\\|[\\/])[^"'\\/\][}{$;,\r\n]+)*)/g;
 
 export function expand(text, { home = homeDir(), projects = {}, style = 'slash' } = {}) {
   const render = (p) => {
