@@ -9,6 +9,9 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
+// The confirmation pages; see the rules at the head of pages.js — nothing
+// external is loaded, on the very page that just handled a credential.
+import { PAGE_OK, PAGE_DENIED } from './pages.js';
 
 export const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -23,13 +26,6 @@ export function pkcePair() {
   return { verifier, challenge };
 }
 
-// Tiny confirmation pages. Nothing external is loaded: the page a security
-// tool shows right after a sign-in must not itself phone anywhere.
-const PAGE_OK = '<!doctype html><meta charset="utf-8"><title>bottari</title>' +
-  '<body style="font-family:sans-serif;margin:3em"><h2>로그인 완료 / Signed in</h2>' +
-  '<p>이 탭을 닫고 터미널로 돌아가세요. You can close this tab.</p>';
-const PAGE_DENIED = '<!doctype html><meta charset="utf-8"><title>bottari</title>' +
-  '<body style="font-family:sans-serif;margin:3em"><h2>로그인 거부됨 / Sign-in refused</h2>';
 
 export function startListener(state) {
   return new Promise((resolveListener, rejectListener) => {
