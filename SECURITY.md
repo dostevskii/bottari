@@ -68,12 +68,12 @@
 일반 패턴과 gitignore된 로컬 거부 목록으로 이를 강제하며, 커밋 전 반드시
 실행합니다.
 
-## 제보
-
-취약점을 발견하면 dostevskii@gmail.com 으로 알려주세요.
-
 ## 서드파티 자산
 
 로그인 완료 페이지에는 **Inter** 폰트가 내장되어 있습니다 (SIL Open Font
 License 1.1, `src/auth/assets/Inter-OFL.txt`). 페이지가 외부로 어떤 요청도
 하지 않는다는 원칙을 지키기 위해 CDN이 아닌 data URI로 인라인됩니다.
+
+## 제보
+
+취약점을 발견하면 dostevskii@gmail.com 으로 알려주세요.
