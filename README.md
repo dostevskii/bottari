@@ -1,7 +1,14 @@
-# bottari · 보따리
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/bottari_logo_dark.svg">
+    <img src="docs/assets/bottari_logo_light.svg" alt="BOTTARI" width="440">
+  </picture>
+</p>
 
-Pack up your CLI world — skills, settings and sessions — and carry it between
-machines through your own Google Drive.
+<p align="center"><b>보따리</b> — pack up your CLI world, skills, settings and sessions,<br>
+and carry it between machines through your own Google Drive.</p>
+
+---
 
 흩어진 컴퓨터들(Windows / Linux / macOS) 사이에서 Claude Code CLI와 Codex CLI의
 스킬·설정·세션 기록·프로젝트 폴더를 하나의 보따리로 싸서, **본인의 Google
