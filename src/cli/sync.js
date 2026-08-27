@@ -3,6 +3,7 @@
 
 import { openCloud, obtainDek } from './context.js';
 import { runSync } from '../core/orchestrator.js';
+import { syncSecrets } from '../core/secret-sync.js';
 import { acquireLock, releaseLock } from '../core/generation.js';
 import { loadProfile } from '../model/config.js';
 import { askChoice } from './prompt.js';
@@ -44,7 +45,7 @@ function report(r) {
 
 // Shared by `sync` and `init` — the pipeline is identical once the store
 // and the key are in hand.
-export async function performSync(ctx, dek, { dryRun = false, force = false } = {}) {
+export async function performSync(ctx, dek, { dryRun = false, force = false, prefer = null } = {}) {
   const profile = loadProfile();
   if (!dryRun) await acquireLock(ctx.store, profile.machineId, { force });
   try {
@@ -54,10 +55,24 @@ export async function performSync(ctx, dek, { dryRun = false, force = false } = 
       meta: ctx.meta,
       metaFileId: ctx.metaFileId,
       machineId: profile.machineId,
-      io: { resolveConflict: cliConflict },
+      // --prefer answers every conflict the same way, for scripted runs
+      // and machines with no terminal to ask at.
+      io: {
+        resolveConflict: prefer
+          ? async (p) => { log.info(`conflict -> ${prefer}: ${p}`); return prefer; }
+          : cliConflict,
+      },
       dryRun,
     });
     report(r);
+    // opt-in, and only after the files themselves landed
+    if (!dryRun) {
+      const s = await syncSecrets(ctx.store, ctx.files, dek, r.meta ?? ctx.meta);
+      if (s && (s.added || s.pushed)) {
+        log.out(`  secrets: ${s.added} received · ${s.pushed} shared` +
+          (s.rebuilt ? ` · ${s.rebuilt} config(s) rewritten with them` : ''));
+      }
+    }
     return r;
   } finally {
     if (!dryRun) await releaseLock(ctx.store);
@@ -75,12 +90,20 @@ export default async function sync(args) {
       log.out(`fingerprint allowed: ${args[i]}`);
     }
   }
+  const preferArg = args.find((a) => a.startsWith('--prefer'));
+  const prefer = preferArg
+    ? (preferArg.includes('=') ? preferArg.split('=')[1] : args[args.indexOf(preferArg) + 1])
+    : null;
+  if (prefer && !['local', 'remote', 'both'].includes(prefer)) {
+    log.error(`--prefer must be local, remote or both (got: ${prefer})`);
+    return 1;
+  }
   const ctx = await openCloud();
   if (!ctx.meta) {
     log.error('No bundle in the cloud yet. Start with `bottari init`.');
     return 1;
   }
   const dek = await obtainDek(ctx, { rememberKey });
-  await performSync(ctx, dek, { dryRun, force });
+  await performSync(ctx, dek, { dryRun, force, prefer });
   return 0;
 }

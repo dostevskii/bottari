@@ -227,6 +227,25 @@ test('codex config: a root key held in the overlay is not duplicated by the shar
   assert.ok(out.includes('model = "shared"'), 'unrelated shared keys survive');
 });
 
+// The real incident: two project tables spelled differently (drive-letter
+// case) shrank to the same header, so the shared half declared it twice
+// and every machine that restored it got an unreadable config.
+test('codex config: headers that shrink to the same table are emitted once', async () => {
+  const fixture = [
+    "[projects.'c:\\Users\\example']",
+    'trust_level = "trusted"',
+    '',
+    "[projects.'C:\\Users\\example']",
+    'trust_level = "trusted"',
+  ].join('\n');
+  const { shared, overlay } = await codexConfig.pack(Buffer.from(fixture), WIN);
+  const headers = shared.toString().split('\n').filter((l) => l.startsWith('[projects'));
+  assert.equal(headers.length, 1, `expected one table, got:\n${shared}`);
+
+  const out = (await codexConfig.unpack(shared, { overlay, ctx: LNX })).toString();
+  assert.equal(out.split('\n').filter((l) => l.startsWith('[projects')).length, 1);
+});
+
 test('codex config: a section naming an OS-specific binary stays machine-local', async () => {
   const fixture = [
     '[mcp_servers.node_repl]',

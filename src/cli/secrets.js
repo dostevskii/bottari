@@ -10,6 +10,29 @@ import { log } from '../util/log.js';
 
 export default async function secrets(args) {
   const [sub, name] = args;
+
+  if (sub === 'sync') {
+    const { isEnabled, setEnabled } = await import('../core/secret-sync.js');
+    if (args.includes('--enable')) {
+      setEnabled(true);
+      log.out('Secret syncing is ON.');
+      log.out('Your MCP tokens will now travel in the bundle, encrypted with your');
+      log.out('password. That means one leaked password exposes those tokens too —');
+      log.out('bottari\'s own sign-in and its data key are never included.');
+      log.out('Run `bottari sync` to publish them.');
+      return 0;
+    }
+    if (args.includes('--disable')) {
+      setEnabled(false);
+      log.out('Secret syncing is OFF. Tokens already in the cloud stay there —');
+      log.out('remove them by deleting secrets.enc from the bottari folder in Drive.');
+      return 0;
+    }
+    log.out(`Secret syncing is ${isEnabled() ? 'ON' : 'OFF'}.`);
+    log.out('usage: bottari secrets sync [--enable | --disable]');
+    return 0;
+  }
+
   if (sub === 'list' || !sub) {
     const names = listSecretNames();
     if (!names.length) {
@@ -38,6 +61,6 @@ export default async function secrets(args) {
     log.out(`removed: ${name}`);
     return 0;
   }
-  log.error('usage: bottari secrets [list | set <name> | remove <name>]');
+  log.error('usage: bottari secrets [list | set <name> | remove <name> | sync [--enable|--disable]]');
   return 1;
 }

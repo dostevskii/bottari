@@ -16,7 +16,7 @@ const COMMANDS = new Map([
     load: () => import('./init.js'),
   }],
   ['sync', {
-    summary: 'synchronize (--dry-run preview, --remember-key store the key, --force-unlock)',
+    summary: 'synchronize (--dry-run, --prefer local|remote for scripted runs, --remember-key)',
     load: () => import('./sync.js'),
   }],
   ['status', {

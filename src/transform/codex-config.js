@@ -25,6 +25,11 @@ const HEADER = /^\s*\[.*\]\s*(#.*)?$/;
 // exist elsewhere — a Windows node_repl.exe landing on Linux.
 const isOsSpecific = (line) => /\.(exe|bat|cmd|dll|dylib|so)\b/i.test(line);
 
+// Identity of a table, and of a root assignment — used to keep either
+// from being declared twice, which TOML refuses outright.
+const headerKey = (line) => line.trim().replace(/\s+/g, '');
+const rootKey = (line) => (line.match(/^\s*([^=#\s]+)\s*=/) ?? [])[1];
+
 function toSections(text) {
   const lines = text.split('\n');
   const root = [];
@@ -59,12 +64,20 @@ export async function pack(raw, ctx) {
 
   const sharedSections = [];
   const overlaySections = [];
+  // Two headers that differ only in a detail shrink erases — a drive
+  // letter's case, a separator — become the same table once shrunk.
+  // Emitting both would declare it twice and make TOML reject the file,
+  // so the first spelling wins.
+  const claimed = new Set();
   for (const sec of sections) {
     const isWindows = /^\s*\[windows(\.|\])/.test(sec.header);
     const shrunkHeader = shrink(sec.header, ctx);
     const shrunkLines = sec.lines.map((l) => shrink(l, ctx));
     const dirty = isWindows || shrunkLines.some(isOsSpecific) ||
       hasAbsolutePath(shrunkHeader) || shrunkLines.some(hasAbsolutePath);
+    const key = headerKey(dirty ? sec.header : shrunkHeader);
+    if (claimed.has(key)) continue;
+    claimed.add(key);
     if (dirty) {
       overlaySections.push([sec.header, ...sec.lines].join('\n'));
     } else {
@@ -79,9 +92,6 @@ export async function pack(raw, ctx) {
   return { shared: Buffer.from(sharedText, 'utf8'), overlay };
 }
 
-const headerKey = (line) => line.trim().replace(/\s+/g, '');
-const rootKey = (line) => (line.match(/^\s*([^=#\s]+)\s*=/) ?? [])[1];
-
 export async function unpack(sharedBuf, { overlay, ctx }) {
   const style = (ctx.platform ?? process.platform) === 'win32' ? 'backslash' : 'slash';
   const expanded = expand(sharedBuf.toString('utf8'), { ...ctx, style });
@@ -95,15 +105,24 @@ export async function unpack(sharedBuf, { overlay, ctx }) {
   const ownHeaders = new Set((overlay?.sections ?? []).map((s) => headerKey(s.split('\n')[0])));
   const ownRootKeys = new Set((overlay?.root ?? []).map(rootKey).filter(Boolean));
 
+  // Belt and braces: also collapse anything the shared half itself
+  // repeats after expansion, whatever produced it.
+  const emitted = new Set(ownHeaders);
+  const sharedOut = [];
+  for (const s of sections) {
+    const k = headerKey(s.header);
+    if (emitted.has(k)) continue;
+    emitted.add(k);
+    sharedOut.push([s.header, ...s.lines].join('\n'));
+  }
+
   const parts = [
     ...root.filter((l) => {
       const k = rootKey(l);
       return !k || !ownRootKeys.has(k);
     }),
     ...(overlay?.root ?? []),
-    ...sections
-      .filter((s) => !ownHeaders.has(headerKey(s.header)))
-      .map((s) => [s.header, ...s.lines].join('\n')),
+    ...sharedOut,
     ...(overlay?.sections ?? []),
   ];
   return Buffer.from(parts.join('\n'), 'utf8');
