@@ -15,13 +15,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { homeDir, atomicWrite } from '../util/fs.js';
 
+// Every prefix pattern is guarded so it cannot start mid-word: the sk-
+// inside "task-based-asynchronous-programming" is prose, not a key. Real
+// keys sit after a quote, a space, a separator or the start of the line.
 const PATTERNS = [
-  { kind: 'openai-key', re: /sk-[A-Za-z0-9_-]{20,}/g },
-  { kind: 'anthropic-key', re: /sk-ant-[A-Za-z0-9_-]{20,}/g },
-  { kind: 'github-token', re: /gh[pousr]_[A-Za-z0-9]{20,}/g },
-  { kind: 'slack-token', re: /xox[baprs]-[A-Za-z0-9-]{10,}/g },
-  { kind: 'google-api-key', re: /AIza[A-Za-z0-9_-]{30,}/g },
-  { kind: 'google-oauth-refresh', re: /1\/\/[A-Za-z0-9_-]{20,}/g },
+  { kind: 'openai-key', re: /(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}/g },
+  { kind: 'anthropic-key', re: /(?<![A-Za-z0-9])sk-ant-[A-Za-z0-9_-]{20,}/g },
+  { kind: 'github-token', re: /(?<![A-Za-z0-9])gh[pousr]_[A-Za-z0-9]{20,}/g },
+  { kind: 'slack-token', re: /(?<![A-Za-z0-9])xox[baprs]-[A-Za-z0-9-]{10,}/g },
+  { kind: 'google-api-key', re: /(?<![A-Za-z0-9])AIza[A-Za-z0-9_-]{30,}/g },
+  { kind: 'google-oauth-refresh', re: /(?<![A-Za-z0-9/])1\/\/[A-Za-z0-9_-]{20,}/g },
   { kind: 'bearer-jwt', re: /Bearer\s+eyJ[A-Za-z0-9_-]{15,}/g },
   { kind: 'private-key-block', re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g },
   { kind: 'authorization-header', re: /"Authorization"\s*:\s*"(?!\$\{BOTTARI_SECRET:)[^"]{12,}"/g },

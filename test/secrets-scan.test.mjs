@@ -32,6 +32,15 @@ test('each pattern family is caught', () => {
   }
 });
 
+test('prose containing a prefix mid-word is not a finding (real-data regression)', () => {
+  // this exact string tripped the gate on a real skill CSV
+  const prose = B('parallel-programming/task-based-asynchronous-programming and risk-based-assessment-notes');
+  assert.deepEqual(scanBuffer(prose), []);
+  // the same shape after a quote or space is still caught
+  assert.equal(scanBuffer(B('key="sk-based-asynchronous-prog"'))[0]?.kind, 'openai-key');
+  assert.equal(scanBuffer(B('token sk-abcdefghijklmnopqrstuv'))[0]?.kind, 'openai-key');
+});
+
 test('a placeholder is not a finding, binary is not scanned', () => {
   assert.deepEqual(scanBuffer(B('"Authorization": "${BOTTARI_SECRET:api-auth}"')), []);
   assert.deepEqual(scanBuffer(Buffer.from([0, 1, 2, 115, 107, 45])), []);
