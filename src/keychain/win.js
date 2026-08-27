@@ -16,12 +16,20 @@ import { atomicWrite } from '../util/fs.js';
 
 const VAULT = () => path.join(homeDir(), '.bottari', 'vault.win.json');
 
-function ps(script) {
+// secret: true means the value's base64 is embedded in the script, so the
+// -EncodedCommand argv could reconstruct it — never let such a failure's
+// message (which carries that argv) propagate.
+function ps(script, { secret = false } = {}) {
   // progress records leak to stderr as CLIXML noise otherwise
   const encoded = Buffer.from(`$ProgressPreference='SilentlyContinue'; ${script}`, 'utf16le').toString('base64');
-  return execFileSync('powershell.exe',
-    ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
-    { encoding: 'utf8', windowsHide: true }).trim();
+  try {
+    return execFileSync('powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+      { encoding: 'utf8', windowsHide: true }).trim();
+  } catch (e) {
+    if (secret) throw new Error('Windows credential store (DPAPI) write failed.');
+    throw e;
+  }
 }
 
 function dpapi(op, b64) {
@@ -29,6 +37,7 @@ function dpapi(op, b64) {
     'Add-Type -AssemblyName System.Security; ' +
     '[Convert]::ToBase64String([System.Security.Cryptography.ProtectedData]::' +
     `${op}([Convert]::FromBase64String('${b64}'), $null, 'CurrentUser'))`,
+    { secret: op === 'Protect' },
   );
 }
 
