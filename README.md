@@ -114,6 +114,7 @@ bottari sync
 | `bottari projects add <path>` | add a project folder to the sync |
 | `bottari tools capture` / `show` | record and compare installed tools |
 | `bottari secrets set <name>` | fill a secret that was split out of a config |
+| `bottari secrets sync --enable` | carry MCP tokens in the bundle too (off by default — see [SECURITY.md](SECURITY.md)) |
 | `bottari login` / `logout` | sign in / out of Google Drive |
 
 ## Claude Desktop (MCP)

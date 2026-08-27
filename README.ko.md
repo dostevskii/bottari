@@ -110,6 +110,7 @@ bottari sync
 | `bottari projects add <경로>` | 프로젝트 폴더를 동기화 대상에 추가 |
 | `bottari tools capture` / `show` | 설치 도구 기록·비교 |
 | `bottari secrets set <이름>` | 설정에서 분리된 시크릿 값 채우기 |
+| `bottari secrets sync --enable` | MCP 토큰도 함께 동기화 (기본 꺼짐, [SECURITY.md](SECURITY.md) 참고) |
 | `bottari login` / `logout` | Google Drive 로그인 / 로그아웃 |
 
 ## Claude 데스크톱 (MCP)
