@@ -5,10 +5,37 @@
   "type": "module",
   "bin": { "bottari": "bin/bottari.mjs" },
   "engines": { "node": ">=20" },
+  "files": [
+    "bin",
+    "src",
+    "LICENSE",
+    "README.md",
+    "README.ko.md",
+    "SECURITY.md",
+    "PRIVACY.md"
+  ],
   "scripts": {
     "test": "node --test",
-    "pii": "node scripts/check-pii.mjs"
+    "pii": "node scripts/check-pii.mjs",
+    "mcpb": "node scripts/build-mcpb.mjs",
+    "prepublishOnly": "npm test && npm run pii"
   },
+  "keywords": [
+    "sync",
+    "backup",
+    "google-drive",
+    "claude-code",
+    "codex",
+    "mcp",
+    "cli",
+    "cross-platform"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dostevskii/bottari.git"
+  },
+  "homepage": "https://github.com/dostevskii/bottari#readme",
+  "bugs": { "url": "https://github.com/dostevskii/bottari/issues" },
   "author": "JUNG HWANGBO <dostevskii@gmail.com>",
   "license": "GPL-3.0-only"
 }
