@@ -19,6 +19,7 @@ import { findCaseCollisions } from '../paths/normalize.js';
 import { machineContext } from '../transform/index.js';
 import { assertClean, loadAllowed, scanBuffer } from '../scan/secrets.js';
 import { resolveAppendOnly, lineUnion } from './jsonl.js';
+import { makeBar } from '../util/progress.js';
 import { newManifest, parseManifest, serializeManifest, hashesOf } from '../model/manifest.js';
 import { loadState, saveState } from '../model/state.js';
 import { seal, unseal } from '../crypto/envelope.js';
@@ -96,6 +97,8 @@ export async function runSync({
     const ctx = machineContext();
     const allowed = loadAllowed();
     let tierDFindings = 0;
+    // real bars are attached right before the transfer pools run
+    const bars = { download: { tick() {}, finish() {} }, upload: { tick() {}, finish() {} } };
 
     const writeLocal = async (logical, entry, buf, opts = {}) => {
       const ok = await materialize(logical, entry, buf, { ctx, ...opts });
@@ -127,6 +130,7 @@ export async function runSync({
         const hash = f.packed ? f.hash : sha256Hex(buf);
         const oid = objectId(objKey, hash);
         await putObject(store, oid, seal(buf, dek, { oid, gzip: true }), objectsIndex);
+        bars.upload.tick(buf.length);
         newEntries[logical] = {
           hash, size: buf.length, mtime: Math.round(f.mtimeMs), exec: f.exec,
           tier, objects: [oid], gzip: true,
@@ -145,6 +149,7 @@ export async function runSync({
             gateOrReport(logical, piece, tier);
             const oid = objectId(objKey, sha256Hex(piece));
             await putObject(store, oid, seal(piece, dek, { oid, gzip: true }), objectsIndex);
+            bars.upload.tick(n);
             oids.push(oid);
             offset += n;
           }
@@ -220,10 +225,26 @@ export async function runSync({
       }
     }
 
+    // The user can only tell "working" from "dead" by watching something
+    // move — both transfer directions get a byte-accurate bar.
+    const sizeOfLocal = (p) => {
+      const f = local.get(p);
+      return f ? (f.packed?.length ?? f.size) : 0;
+    };
+    const dlTotal = plan.downloads.reduce((s, p) => s + (remoteEntries[p].size ?? 0), 0) +
+      [...resolutions].reduce((s, [p, c]) =>
+        s + (c === 'remote' || c === 'both' ? (remoteEntries[p].size ?? 0) : 0), 0);
+    const upTotal = plan.uploads.reduce((s, p) => s + sizeOfLocal(p), 0) +
+      [...resolutions].reduce((s, [p, c]) =>
+        s + (c === 'local' || c === 'both' ? sizeOfLocal(p) : 0), 0);
+    bars.download = makeBar('download', dlTotal, { min: 512 * 1024 });
+    bars.upload = makeBar('upload', upTotal, { min: 512 * 1024 });
+
     // ---- downloads (remote is authoritative for these paths) ----
     await pool(plan.downloads, 4, async (p) => {
       const buf = await download(p, remoteEntries[p]);
       if (await writeLocal(p, remoteEntries[p], buf)) applied.downloaded.push(p);
+      bars.download.tick(remoteEntries[p].size ?? 0);
     });
 
     // ---- uploads ----
@@ -234,6 +255,7 @@ export async function runSync({
       if (choice === 'remote') {
         const buf = await download(p, remoteEntries[p]);
         if (await writeLocal(p, remoteEntries[p], buf)) applied.downloaded.push(p);
+        bars.download.tick(remoteEntries[p].size ?? 0);
       } else if (choice === 'local') {
         await upload(p);
       } else if (choice === 'both') {
@@ -241,6 +263,7 @@ export async function runSync({
         // becomes its own catalog entry, so no machine ever loses either.
         const copyLogical = `${p}.bottari-r${nextGen}`;
         const buf = await download(p, remoteEntries[p]);
+        bars.download.tick(remoteEntries[p].size ?? 0);
         if (await writeLocal(p, remoteEntries[p], buf, { suffix: `.bottari-r${nextGen}` })) {
           newEntries[copyLogical] = { ...remoteEntries[p], tier: remoteEntries[p].tier ?? 'A' };
           applied.kept.push(copyLogical);
@@ -248,6 +271,8 @@ export async function runSync({
         await upload(p);
       }
     }
+    bars.download.finish();
+    bars.upload.finish();
 
     // ---- commit (only when the catalog itself changed) ----
     let generation = head;
@@ -282,7 +307,8 @@ export async function runSync({
     const finalHashes = hashesOf(newEntries);
     // paths deferred as pending keep their old base so they stay diverged
     for (const p of plan.pending) delete finalHashes[p];
-    const { files: rescanned } = await scanLocal(sources, buildScanCache(local));
+    // the post-apply rescan is bookkeeping, not work the user waits on
+    const { files: rescanned } = await scanLocal(sources, buildScanCache(local), { progress: false });
     saveState({
       lastGeneration: generation,
       base: { ...state.base, ...finalHashes },
